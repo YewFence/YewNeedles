@@ -4,6 +4,23 @@
 # 该脚本用于在新服务器上进行基础环境配置，包括系统更新、工具安装、用户创建等。
 # 请以 root 用户身份运行此脚本。
 # 适用于 Debian/Ubuntu 系统。
+# 常用配置
+USERNAME="yewfence"
+SSH_PORT=22
+SWAP=2G
+
+echo "=========================================="
+echo "即将执行的配置预览:"
+echo "用户: $USERNAME"
+echo "SSH 端口: $SSH_PORT"
+echo "Swap 大小: $SWAP"
+echo "=========================================="
+read -r -p "请确认是否继续执行? [y/N]: " CONFIRM_RUN
+case "$CONFIRM_RUN" in
+    y|Y) echo "确认执行，开始初始化...";;
+    *) echo "已取消执行。"; exit 1;;
+esac
+
 # 1. 基础环境更新与工具安装
 echo "Step 1: 更新系统并安装基础工具..."
 apt update && apt upgrade -y
@@ -18,10 +35,10 @@ if ! grep -q "net.ipv4.tcp_congestion_control = bbr" /etc/sysctl.conf; then
 fi
 echo "BBR 已开启。"
 
-# 3. 配置 4GB Swap
+# 3. 配置 Swap
 echo "Step 3: 配置 Swap 交换空间..."
 if [ $(free | awk '/^Swap:/ {print $2}') -eq 0 ]; then
-    fallocate -l 4G /swapfile
+    fallocate -l $SWAP /swapfile
     chmod 600 /swapfile
     mkswap /swapfile
     swapon /swapfile
@@ -29,7 +46,7 @@ if [ $(free | awk '/^Swap:/ {print $2}') -eq 0 ]; then
     # 调整 Swappiness，让系统尽量先用物理内存
     echo "vm.swappiness=10" >> /etc/sysctl.conf
     sysctl -p
-    echo "Swap (4G) 配置完成。"
+    echo "Swap ($SWAP) 配置完成。"
 else
     echo "Swap 已存在，跳过创建。"
 fi
@@ -38,9 +55,9 @@ fi
 echo "Step 4: 配置基础防火墙..."
 ufw default deny incoming
 ufw default allow outgoing
-ufw allow 22/tcp   # SSH
-ufw allow 80/tcp   # HTTP
-ufw allow 443/tcp  # HTTPS
+ufw allow $SSH_PORT/tcp comment "SSH"
+ufw allow 80/tcp comment "HTTP"
+ufw allow 443/tcp comment "HTTPS"
 echo "y" | ufw enable
 echo "防火墙已启用。"
 
@@ -110,8 +127,6 @@ echo "=========================================="
 # 导入 Termius SSH ID
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
 curl -fs https://sshid.io/yewfence >> ~/.ssh/authorized_keys
-
-USERNAME="yewfence"
 
 echo "Step 8: 创建用户 $USERNAME 并配置权限..."
 
