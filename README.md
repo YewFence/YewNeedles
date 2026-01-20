@@ -13,12 +13,16 @@
 | `kopia-server.sh` | Kopia 备份服务器管理 |
 | `ts-certs.sh` | Tailscale 证书自动续期 |
 | `rename-docker.sh` | Docker Compose 文件批量重命名 |
+| `check-compose-volumes.sh` | Docker Compose 卷配置检测 |
+| `migrate-volume.sh` | Docker 命名卷数据迁移 |
+| `close-ssh-pw.sh` | 关闭 SSH 密码登录 |
+| `deploy-singbox.sh` | 自动部署 sing-box 代理容器 |
 
 ## 脚本说明
 
 ### init-server.sh
 
-新服务器初始化脚本，一键完成以下配置：
+新服务器初始化脚本，支持自定义用户名、SSH 端口和 Swap 大小，一键完成以下配置：
 
 - 系统更新和基础工具安装
 - 开启 BBR 拥塞控制算法
@@ -29,7 +33,8 @@
 - 创建用户并配置 SSH 公钥
 
 ```bash
-sudo bash init-server.sh
+vim init-server.sh # 需要更改一些自定义配置
+sudo ./init-server.sh
 ```
 
 ### init-zsh.sh
@@ -97,6 +102,39 @@ Tailscale 证书自动续期脚本，续期后自动重载 Nginx：
 ```bash
 ./rename-docker.sh /path/to/docker/projects        # 执行重命名
 ./rename-docker.sh /path/to/docker/projects --dry  # 预览模式
+```
+
+### check-compose-volumes.sh
+
+辅助检查 Docker Compose 容器卷挂载情况，区分命名卷和绑定挂载：
+
+```bash
+./check-compose-volumes.sh [docker-compose文件路径]
+```
+
+### migrate-volume.sh
+
+将 Docker 命名卷的数据迁移到本地目录：
+
+```bash
+./migrate-volume.sh # 交互式运行
+```
+
+### close-ssh-pw.sh
+
+关闭 ssh 密码登录功能，安全禁用 SSH 密码验证：
+
+```bash
+./close-ssh-pw.sh # 需要交互式确认
+```
+
+### deploy-singbox.sh
+
+自动部署 sing-box 代理容器：
+
+```bash
+vim deploy-singbox.sh # 需要更改一些自定义配置
+./deploy-singbox.sh 
 ```
 
 ## 环境要求
