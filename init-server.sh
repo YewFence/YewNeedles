@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # 初始化服务器脚本
 # 该脚本用于在新服务器上进行基础环境配置，包括系统更新、工具安装、用户创建等。
@@ -44,7 +45,9 @@ if [ $(free | awk '/^Swap:/ {print $2}') -eq 0 ]; then
     swapon /swapfile
     echo '/swapfile none swap sw 0 0' >> /etc/fstab
     # 调整 Swappiness，让系统尽量先用物理内存
-    echo "vm.swappiness=10" >> /etc/sysctl.conf
+    if ! grep -q "vm.swappiness" /etc/sysctl.conf; then
+        echo "vm.swappiness=10" >> /etc/sysctl.conf
+    fi
     sysctl -p
     echo "Swap ($SWAP) 配置完成。"
 else
@@ -79,30 +82,7 @@ cat > /etc/docker/daemon.json <<EOF
 EOF
 systemctl restart docker
 
-echo "Step 7: 配置终端配色与 Vim..."
-
-# --- 1. 配置 Bash 提示符 (PS1) ---
-# 逻辑：
-# \[\033[01;35m\]\u : 紫色用户名 (Purple)
-# @                : 分隔符
-# \[\033[00;33m\]\h : 棕色/暗黄色主机名 (Brown/Dark Yellow)
-# :                : 分隔符
-# \[\033[01;34m\]\w : 蓝色工作目录 (Blue)
-# \[\033[00m\]\$   : 重置颜色 + 提示符
-
-# 将配置追加到 .bashrc (用户级) 和 /root/.bashrc (Root级)
-# 这样你 sudo su 之后也能看到区别（虽然 Root 通常建议用红色提示，但为了统一先按你要求的来）
-
-CONFIG_LINE="export PS1='\[\033[01;35m\]\u\[\033[00m\]@\[\033[00;33m\]\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '"
-
-# 配置当前用户
-echo "$CONFIG_LINE" >> ~/.bashrc
-
-# 立即生效当前会话
-export PS1='\[\033[01;35m\]\u\[\033[00m\]@\[\033[00;33m\]\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
-
-# --- 2. 配置 Vim ---
-# 既然是新环境，我顺便帮你把行号(number)和语法高亮(syntax)也开了，方便写代码
+# 7. 配置 Vim
 cat > ~/.vimrc <<EOF
 " 核心配置：解决 Docker 挂载文件热更新失效问题
 set backupcopy=yes
@@ -118,17 +98,21 @@ set shiftwidth=2    " 缩进宽度
 set expandtab       " Tab 转空格 (Python/Yaml 友好)
 EOF
 
-echo "=========================================="
-echo "🎨 终端配色已更新 (紫色-棕色-蓝色)"
-echo "⚙️ Vim 配置已更新 (已开启 backupcopy=yes)"
-echo "💡 提示: 如果配色没变，请运行 'source ~/.bashrc' 或重新连接 SSH。"
-echo "=========================================="
+# 8. 安装 Tailscale
+echo "Step 9: 安装 Tailscale..."
+curl -fsSL https://tailscale.com/install.sh | sh
 
-# 导入 Termius SSH ID
+# 9. 导入 Termius SSH ID
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
-curl -fs https://sshid.io/yewfence >> ~/.ssh/authorized_keys
+SSH_KEY=$(curl -fs https://sshid.io/yewfence)
+if [ -n "$SSH_KEY" ] && ! grep -qF "$SSH_KEY" ~/.ssh/authorized_keys 2>/dev/null; then
+    echo "$SSH_KEY" >> ~/.ssh/authorized_keys
+    echo "SSH 公钥已导入。"
+else
+    echo "SSH 公钥已存在或获取失败，跳过。"
+fi
 
-echo "Step 8: 创建用户 $USERNAME 并配置权限..."
+echo "Step 11: 创建用户 $USERNAME 并配置权限..."
 
 # 1. 创建用户 (如果不存在)
 if id "$USERNAME" &>/dev/null; then
@@ -136,12 +120,17 @@ if id "$USERNAME" &>/dev/null; then
 else
     # -m 创建家目录, -s 指定shell, -G 加入sudo组
     useradd -m -s /bin/bash -G sudo "$USERNAME"
+    USER_CREATED=true
     echo "用户 $USERNAME 创建成功。"
 fi
 
 # 2. 加入 Docker 用户组 (免 sudo 运行 docker)
 usermod -aG docker "$USERNAME"
 echo "已将 $USERNAME 加入 docker 用户组。"
+
+# 3. 设置为 Tailscale operator (免 sudo 管理 Tailscale)
+tailscale set --operator="$USERNAME"
+echo "已将 $USERNAME 设为 Tailscale operator。"
 
 # 3. 复制 Root 的 SSH 公钥
 # 确保目标 .ssh 目录存在
@@ -162,30 +151,30 @@ chown -R "$USERNAME:$USERNAME" "/home/$USERNAME"
 chmod 700 "$USER_SSH_DIR"
 chmod 600 "$USER_SSH_DIR/authorized_keys"
 
-# 5. 设置一个随机密码 (用于 sudo 验证或临时密码登录)
-# 生成 16 位强密码
-RANDOM_PASS=$(openssl rand -base64 12)
-echo "$USERNAME:$RANDOM_PASS" | chpasswd
-
-# 6. 稍微美化一下新用户的终端 (把刚才配好的 prompt 拷过去)
-if [ -f ~/.bashrc ]; then
-    # 提取刚才设置的 PS1 颜色配置追加到新用户 bashrc
-    grep "export PS1" ~/.bashrc >> "/home/$USERNAME/.bashrc"
-    # 把 vimrc 也拷过去
-    cp ~/.vimrc "/home/$USERNAME/.vimrc"
-    chown "$USERNAME:$USERNAME" "/home/$USERNAME/.bashrc" "/home/$USERNAME/.vimrc"
+# 5. 设置一个随机密码 (仅在新建用户时设置，避免重复执行覆盖已有密码)
+if [ "${USER_CREATED:-false}" = true ]; then
+    RANDOM_PASS=$(openssl rand -base64 12)
+    echo "$USERNAME:$RANDOM_PASS" | chpasswd
 fi
+
+# 6. 复制 Vim 配置给新用户
+cp ~/.vimrc "/home/$USERNAME/.vimrc"
+chown "$USERNAME:$USERNAME" "/home/$USERNAME/.vimrc"
 
 echo "=========================================="
 echo "✅ 用户 $USERNAME 配置完成！"
-echo "🔑 临时密码: $RANDOM_PASS"
-echo "   (请务必复制保存，sudo 需要用到)"
+if [ "${USER_CREATED:-false}" = true ]; then
+    echo "🔑 临时密码: $RANDOM_PASS"
+    echo "   (请务必复制保存，sudo 需要用到)"
+else
+    echo "ℹ️ 用户已存在，密码未更改。"
+fi
 echo ""
 echo "测试流程:"
-echo "1. 新开一个终端窗口"
-echo "2. 运行: ssh $USERNAME@<服务器IP>"
-echo "3. 验证: docker ps (应不需要 sudo)"
-echo "4. 验证: sudo apt update (输入上面密码)"
+echo "1. 运行: ssh $USERNAME@<服务器IP> / 或者 su - $USERNAME"
+echo "2. 验证: docker ps (应不需要 sudo)"
+echo "3. 验证: sudo apt update (输入上面密码)"
+echo "4. 可选的：安装 homebrew: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)""
 echo "=========================================="
 
 echo "=========================================="

@@ -34,7 +34,8 @@ fi
 
 if [ "$use_dropin" = "true" ]; then
   cat > "$DROPIN_FILE" <<'EOF'
-# 禁用 SSH 密码登录
+# 启用密钥登录 & 禁用密码登录
+PubkeyAuthentication yes
 PasswordAuthentication no
 ChallengeResponseAuthentication no
 UsePAM yes
@@ -45,6 +46,14 @@ else
     echo "未找到 $SSHD_CONFIG，无法修改。"
     exit 1
   fi
+  # 启用密钥登录
+  if grep -Eq '^[[:space:]]*PubkeyAuthentication[[:space:]]+' "$SSHD_CONFIG"; then
+    sed -i 's/^[[:space:]]*PubkeyAuthentication[[:space:]]\+.*/PubkeyAuthentication yes/' "$SSHD_CONFIG"
+  else
+    printf "\nPubkeyAuthentication yes\n" >> "$SSHD_CONFIG"
+  fi
+
+  # 禁用密码登录
   if grep -Eq '^[[:space:]]*PasswordAuthentication[[:space:]]+' "$SSHD_CONFIG"; then
     sed -i 's/^[[:space:]]*PasswordAuthentication[[:space:]]\+.*/PasswordAuthentication no/' "$SSHD_CONFIG"
   else
