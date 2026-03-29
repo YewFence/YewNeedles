@@ -53,6 +53,19 @@ else
     echo "[6/6] zsh-syntax-highlighting 已安装，跳过..."
 fi
 
+# 配置 compinit 补全初始化
+ZSHRC="$HOME/.zshrc"
+if ! grep -q 'autoload -U compinit' "$ZSHRC" 2>/dev/null; then
+    echo "正在配置 compinit 补全初始化..."
+    cat >> "$ZSHRC" << 'EOF'
+
+# 初始化 zsh 补全系统
+autoload -U compinit; compinit
+EOF
+else
+    echo "compinit 已配置，跳过..."
+fi
+
 # 将 zsh 设为默认 shell
 echo "正在将 zsh 设为默认 shell..."
 if [ "$SHELL" != "$(which zsh)" ]; then
