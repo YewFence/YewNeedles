@@ -1,10 +1,16 @@
 # Copy this file to inventory.yml and replace the sample values.
 # `ansible_port` is both the SSH connection port and the port opened in UFW.
+# The `enable_*` flags control which server-specific roles run.
 all:
   vars:
     username: yewfence
-    swap_size: 2G
     sshid_username: yewfence
+    enable_bbr: true
+    enable_swap: true
+    swap_size: 2G
+    enable_ufw: true
+    enable_docker: true
+    enable_tailscale: true
 
   hosts:
     example_vps:

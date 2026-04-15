@@ -1,0 +1,9 @@
+---
+docker_install_script_url: https://get.docker.com
+docker_manage_user_group: true
+
+docker_daemon_config:
+  log-driver: json-file
+  log-opts:
+    max-size: 50m
+    max-file: "3"

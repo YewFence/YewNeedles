@@ -1,0 +1,5 @@
+---
+swap_size: 2G
+swapfile_path: /swapfile
+swapfile_swappiness: 10
+swapfile_sysctl_file: /etc/sysctl.d/99-swapfile.conf

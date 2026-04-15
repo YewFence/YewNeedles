@@ -1,0 +1,83 @@
+---
+# Install UFW here instead of `common` so dev environments can skip it entirely.
+- name: Install UFW
+  ansible.builtin.apt:
+    name: "{{ ufw_packages }}"
+    state: present
+
+- name: Set UFW default deny incoming policy
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - default
+      - deny
+      - incoming
+  register: ufw_default_deny
+  changed_when: "'changed to' in (ufw_default_deny.stdout | lower)"
+
+- name: Set UFW default allow outgoing policy
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - default
+      - allow
+      - outgoing
+  register: ufw_default_allow
+  changed_when: "'changed to' in (ufw_default_allow.stdout | lower)"
+
+# Reuse the connection port so the firewall and the SSH transport cannot drift apart.
+- name: Allow SSH through UFW on the inventory SSH port
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - "{{ ansible_port }}/tcp"
+      - comment
+      - SSH
+  register: ufw_allow_ssh
+  changed_when: "'skipping' not in (((ufw_allow_ssh.stdout | default('')) ~ (ufw_allow_ssh.stderr | default(''))) | lower)"
+
+- name: Allow HTTP through UFW
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - 80/tcp
+      - comment
+      - HTTP
+  register: ufw_allow_http_result
+  changed_when: "'skipping' not in (((ufw_allow_http_result.stdout | default('')) ~ (ufw_allow_http_result.stderr | default(''))) | lower)"
+  when: ufw_allow_http | bool
+
+- name: Allow HTTPS through UFW
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - 443/tcp
+      - comment
+      - HTTPS
+  register: ufw_allow_https_result
+  changed_when: "'skipping' not in (((ufw_allow_https_result.stdout | default('')) ~ (ufw_allow_https_result.stderr | default(''))) | lower)"
+  when: ufw_allow_https | bool
+
+- name: Allow any extra UFW rules
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - "{{ item }}"
+  loop: "{{ ufw_extra_rules }}"
+  register: ufw_extra_rule_results
+  changed_when: "'skipping' not in (((ufw_extra_rule_results.stdout | default('')) ~ (ufw_extra_rule_results.stderr | default(''))) | lower)"
+
+- name: Enable UFW
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - --force
+      - enable
+  register: ufw_enable
+  changed_when: >-
+    'firewall is active and enabled on system startup'
+    not in (((ufw_enable.stdout | default('')) ~ (ufw_enable.stderr | default(''))) | lower)

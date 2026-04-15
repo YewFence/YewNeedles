@@ -1,0 +1,34 @@
+---
+# Small baseline package set that is broadly useful across servers and dev boxes.
+common_packages:
+  - ca-certificates
+  - curl
+  - wget
+  - git
+  - vim
+  - unzip
+  - tar
+
+common_upgrade_system: true
+common_manage_user: true
+common_manage_root_ssh_key: true
+common_copy_root_authorized_keys: true
+common_manage_vimrc: true
+common_create_temp_password: true
+common_user_shell: /bin/bash
+common_user_groups:
+  - sudo
+
+common_vimrc_content: |
+  " Keep Docker bind-mount file updates working.
+  set backupcopy=yes
+
+  " Basic terminal editing quality-of-life settings.
+  syntax on
+  set number
+  set ruler
+  set autoindent
+  set mouse=a
+  set tabstop=2
+  set shiftwidth=2
+  set expandtab

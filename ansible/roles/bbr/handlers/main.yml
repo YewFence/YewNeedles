@@ -1,0 +1,3 @@
+---
+- name: Reload bbr sysctl
+  ansible.builtin.command: sysctl --system

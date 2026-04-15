@@ -1,65 +1,30 @@
 ---
-- name: Initialize Debian or Ubuntu VPS hosts
+- name: Initialize Debian or Ubuntu server hosts
   hosts: all
   become: true
   gather_facts: false
 
-  vars:
-    # Base packages kept close to the original shell script.
-    base_packages:
-      - ca-certificates
-      - curl
-      - wget
-      - git
-      - vim
-      - htop
-      - ufw
-      - unzip
-      - tar
-      - socat
-
-    # Keep the Docker daemon log rotation policy in one place.
-    docker_daemon_config:
-      log-driver: json-file
-      log-opts:
-        max-size: 50m
-        max-file: "3"
-
-    # Reuse the same Vim defaults for root and the managed user.
-    vimrc_content: |
-      " Keep Docker bind-mount file updates working.
-      set backupcopy=yes
-
-      " Basic terminal editing quality-of-life settings.
-      syntax on
-      set number
-      set ruler
-      set autoindent
-      set mouse=a
-      set tabstop=2
-      set shiftwidth=2
-      set expandtab
-
   pre_tasks:
-    # Fail fast if the caller forgot to set an important variable.
+    # Fail before any remote changes if the required connection and user vars are
+    # missing or obviously invalid.
     - name: Validate required variables
       ansible.builtin.assert:
         that:
           - username is defined
           - username | length > 0
           - username != 'root'
-          - swap_size is defined
-          - swap_size | regex_search('^[0-9]+[MG]$')
           - sshid_username is defined
           - sshid_username | length > 0
           - ansible_port is defined
           - (ansible_port | int) > 0
           - (ansible_port | int) < 65536
+          - (not (enable_swap | default(true) | bool)) or (swap_size is defined)
+          - (not (enable_swap | default(true) | bool)) or (swap_size | regex_search('^[0-9]+[MG]$'))
         fail_msg: >-
-          Missing or invalid vars. Define username, swap_size, sshid_username,
-          and ansible_port before running this playbook.
+          Missing or invalid vars. Define username, sshid_username, ansible_port,
+          and swap_size when swap is enabled before running this playbook.
 
-    # Print the exact values that will be used so the operator can confirm them.
+    # Show a single summary of the host values and enabled roles before anything runs.
     - name: Preview host settings before any remote changes
       ansible.builtin.debug:
         msg: |
@@ -70,13 +35,18 @@
             ansible_user: {{ hostvars[host].ansible_user | default('root') }}
             ansible_port: {{ hostvars[host].ansible_port | default('UNSET') }}
             username: {{ hostvars[host].username | default('UNSET') }}
-            swap_size: {{ hostvars[host].swap_size | default('UNSET') }}
             sshid_username: {{ hostvars[host].sshid_username | default('UNSET') }}
+            enable_bbr: {{ hostvars[host].enable_bbr | default(true) }}
+            enable_swap: {{ hostvars[host].enable_swap | default(true) }}
+            swap_size: {{ hostvars[host].swap_size | default('UNSET') }}
+            enable_ufw: {{ hostvars[host].enable_ufw | default(true) }}
+            enable_docker: {{ hostvars[host].enable_docker | default(true) }}
+            enable_tailscale: {{ hostvars[host].enable_tailscale | default(true) }}
           {% endfor %}
       run_once: true
       delegate_to: localhost
 
-    # Ask once before the playbook starts touching the servers.
+    # Preserve the current workflow: ask once, then either continue or abort.
     - name: Require a final yes before continuing
       ansible.builtin.pause:
         prompt: Type "yes" to continue. Any other input will cancel the run.
@@ -91,303 +61,49 @@
       run_once: true
       delegate_to: localhost
 
-    # Record whether the managed user already existed so we only generate
-    # a temporary password on first creation.
-    - name: Check whether the managed user already exists
-      ansible.builtin.command: id -u {{ username }}
-      register: managed_user_id
-      changed_when: false
-      failed_when: false
-
   tasks:
-    # Bring apt metadata and base packages up to date before the rest of the setup.
-    - name: Update apt cache and upgrade installed packages
-      ansible.builtin.apt:
-        update_cache: true
-        upgrade: dist
-        cache_valid_time: 3600
+    # `common` is intentionally small so it can be reused by future WSL/LXC/dev playbooks.
+    - name: Apply the minimal baseline shared by most managed machines
+      ansible.builtin.include_role:
+        name: common
 
-    - name: Install base packages
-      ansible.builtin.apt:
-        name: "{{ base_packages }}"
-        state: present
+    # Server-only networking tweaks stay outside `common`.
+    - name: Apply BBR kernel tuning for public server hosts
+      ansible.builtin.include_role:
+        name: bbr
+      when: enable_bbr | default(true) | bool
 
-    # Put kernel tuning into its own drop-in file instead of appending to sysctl.conf.
-    - name: Install kernel tuning settings for BBR and swap behavior
-      ansible.builtin.copy:
-        dest: /etc/sysctl.d/99-yew-init.conf
-        mode: "0644"
-        content: |
-          net.core.default_qdisc = fq
-          net.ipv4.tcp_congestion_control = bbr
-          vm.swappiness = 10
-      notify: Reload sysctl
+    # Swapfile management is separated because WSL/LXC often handle swap elsewhere.
+    - name: Create and tune a swapfile when requested
+      ansible.builtin.include_role:
+        name: swapfile
+      when: enable_swap | default(true) | bool
 
-    # Only create a swapfile when the host currently has no active swap.
-    - name: Check whether swap is already active
-      ansible.builtin.command: swapon --show --noheadings
-      register: active_swap
-      changed_when: false
+    # Firewall policy is server-specific, not part of the common baseline.
+    - name: Configure UFW with the current SSH port and web ports
+      ansible.builtin.include_role:
+        name: ufw
+      when: enable_ufw | default(true) | bool
 
-    - name: Create and enable a swapfile when swap is missing
-      when: active_swap.stdout | trim == ''
-      block:
-        - name: Allocate the swapfile
-          ansible.builtin.command: fallocate -l {{ swap_size }} /swapfile
-          args:
-            creates: /swapfile
+    # Docker remains optional so future playbooks can omit it.
+    - name: Install Docker and its daemon defaults
+      ansible.builtin.include_role:
+        name: docker_host
+      when: enable_docker | default(true) | bool
 
-        - name: Lock down swapfile permissions
-          ansible.builtin.file:
-            path: /swapfile
-            mode: "0600"
-            owner: root
-            group: root
+    # Tailscale is useful for servers but should not leak into every future machine type.
+    - name: Install and configure Tailscale
+      ansible.builtin.include_role:
+        name: tailscale
+      when: enable_tailscale | default(true) | bool
 
-        - name: Format the swapfile
-          ansible.builtin.command: mkswap /swapfile
-
-        - name: Enable the swapfile now
-          ansible.builtin.command: swapon /swapfile
-
-        - name: Persist the swapfile in fstab
-          ansible.builtin.lineinfile:
-            path: /etc/fstab
-            line: /swapfile none swap sw 0 0
-            state: present
-
-    # Keep the firewall rules explicit so the opened SSH port always matches inventory.
-    - name: Set UFW default deny incoming policy
-      ansible.builtin.command:
-        argv:
-          - ufw
-          - default
-          - deny
-          - incoming
-      register: ufw_default_deny
-      changed_when: "'changed to' in (ufw_default_deny.stdout | lower)"
-
-    - name: Set UFW default allow outgoing policy
-      ansible.builtin.command:
-        argv:
-          - ufw
-          - default
-          - allow
-          - outgoing
-      register: ufw_default_allow
-      changed_when: "'changed to' in (ufw_default_allow.stdout | lower)"
-
-    - name: Allow SSH through UFW on the inventory SSH port
-      ansible.builtin.command:
-        argv:
-          - ufw
-          - allow
-          - "{{ ansible_port }}/tcp"
-          - comment
-          - SSH
-      register: ufw_allow_ssh
-      changed_when: "'skipping' not in (((ufw_allow_ssh.stdout | default('')) ~ (ufw_allow_ssh.stderr | default(''))) | lower)"
-
-    - name: Allow HTTP through UFW
-      ansible.builtin.command:
-        argv:
-          - ufw
-          - allow
-          - 80/tcp
-          - comment
-          - HTTP
-      register: ufw_allow_http
-      changed_when: "'skipping' not in (((ufw_allow_http.stdout | default('')) ~ (ufw_allow_http.stderr | default(''))) | lower)"
-
-    - name: Allow HTTPS through UFW
-      ansible.builtin.command:
-        argv:
-          - ufw
-          - allow
-          - 443/tcp
-          - comment
-          - HTTPS
-      register: ufw_allow_https
-      changed_when: "'skipping' not in (((ufw_allow_https.stdout | default('')) ~ (ufw_allow_https.stderr | default(''))) | lower)"
-
-    - name: Enable UFW
-      ansible.builtin.command:
-        argv:
-          - ufw
-          - --force
-          - enable
-      register: ufw_enable
-      changed_when: >-
-        'firewall is active and enabled on system startup'
-        not in (((ufw_enable.stdout | default('')) ~ (ufw_enable.stderr | default(''))) | lower)
-
-    # Keep the Docker install close to the shell script, but only run it once.
-    - name: Check whether Docker is already installed
-      ansible.builtin.stat:
-        path: /usr/bin/docker
-      register: docker_binary
-
-    - name: Install Docker via the official convenience script
-      ansible.builtin.shell: curl -fsSL https://get.docker.com | sh
-      args:
-        executable: /bin/bash
-      when: not docker_binary.stat.exists
-
-    - name: Ensure the docker group exists
-      ansible.builtin.group:
-        name: docker
-        state: present
-
-    - name: Ensure Docker service is enabled and running
-      ansible.builtin.service:
-        name: docker
-        enabled: true
-        state: started
-
-    - name: Ensure Docker config directory exists
-      ansible.builtin.file:
-        path: /etc/docker
-        state: directory
-        mode: "0755"
-
-    - name: Install Docker daemon log rotation config
-      ansible.builtin.copy:
-        dest: /etc/docker/daemon.json
-        mode: "0644"
-        content: "{{ docker_daemon_config | to_nice_json }}\n"
-      notify: Restart docker
-
-    # Root keeps the same Vim settings as in the shell script.
-    - name: Install Vim config for root
-      ansible.builtin.copy:
-        dest: /root/.vimrc
-        mode: "0644"
-        content: "{{ vimrc_content }}"
-
-    # Install Tailscale only once, then keep the daemon running.
-    - name: Check whether Tailscale is already installed
-      ansible.builtin.stat:
-        path: /usr/bin/tailscale
-      register: tailscale_binary
-
-    - name: Install Tailscale via the official script
-      ansible.builtin.shell: curl -fsSL https://tailscale.com/install.sh | sh
-      args:
-        executable: /bin/bash
-      when: not tailscale_binary.stat.exists
-
-    - name: Ensure tailscaled is enabled and running
-      ansible.builtin.service:
-        name: tailscaled
-        enabled: true
-        state: started
-
-    # Import the public key into root first, then mirror root's authorized_keys
-    # to the managed user for the same login path as the shell script.
-    - name: Ensure root SSH directory exists
-      ansible.builtin.file:
-        path: /root/.ssh
-        state: directory
-        mode: "0700"
-
-    - name: Fetch the public key from sshid.io
-      ansible.builtin.uri:
-        url: https://sshid.io/{{ sshid_username }}
-        return_content: true
-      register: sshid_key_response
-
-    - name: Ensure root authorized_keys exists
-      ansible.builtin.file:
-        path: /root/.ssh/authorized_keys
-        state: touch
-        mode: "0600"
-
-    - name: Install the fetched key for root
-      ansible.builtin.lineinfile:
-        path: /root/.ssh/authorized_keys
-        line: "{{ sshid_key_response.content | trim }}"
-        state: present
-
-    # Create the managed user after Docker is installed so we can add it
-    # to both sudo and docker in one task.
-    - name: Ensure the managed user exists
-      ansible.builtin.user:
-        name: "{{ username }}"
-        shell: /bin/bash
-        create_home: true
-        groups:
-          - sudo
-          - docker
-        append: true
-
-    - name: Ensure the managed user SSH directory exists
-      ansible.builtin.file:
-        path: /home/{{ username }}/.ssh
-        state: directory
-        owner: "{{ username }}"
-        group: "{{ username }}"
-        mode: "0700"
-
-    - name: Check whether root authorized_keys exists
-      ansible.builtin.stat:
-        path: /root/.ssh/authorized_keys
-      register: root_authorized_keys
-
-    - name: Copy root authorized_keys to the managed user
-      ansible.builtin.copy:
-        src: /root/.ssh/authorized_keys
-        dest: /home/{{ username }}/.ssh/authorized_keys
-        remote_src: true
-        owner: "{{ username }}"
-        group: "{{ username }}"
-        mode: "0600"
-      when: root_authorized_keys.stat.exists
-
-    - name: Create an empty managed user authorized_keys file when root has none
-      ansible.builtin.file:
-        path: /home/{{ username }}/.ssh/authorized_keys
-        state: touch
-        owner: "{{ username }}"
-        group: "{{ username }}"
-        mode: "0600"
-      when: not root_authorized_keys.stat.exists
-
-    # Match the original behavior: only generate a one-time temporary password
-    # when the user is created by this run.
-    - name: Generate a temporary password for a newly created user
-      ansible.builtin.command: openssl rand -base64 12
-      register: generated_password
-      changed_when: false
-      no_log: true
-      when: managed_user_id.rc != 0
-
-    - name: Set the temporary password for a newly created user
-      ansible.builtin.user:
-        name: "{{ username }}"
-        password: "{{ generated_password.stdout | password_hash('sha512') }}"
-        update_password: always
-      no_log: true
-      when: managed_user_id.rc != 0
-
-    - name: Install Vim config for the managed user
-      ansible.builtin.copy:
-        dest: /home/{{ username }}/.vimrc
-        owner: "{{ username }}"
-        group: "{{ username }}"
-        mode: "0644"
-        content: "{{ vimrc_content }}"
-
-    # Keep the operator assignment explicit so the managed user can control Tailscale.
-    - name: Set the Tailscale operator user
-      ansible.builtin.command: tailscale set --operator={{ username }}
-      register: tailscale_operator_result
-      changed_when: "'operator' in (((tailscale_operator_result.stdout | default('')) ~ (tailscale_operator_result.stderr | default(''))) | lower)"
-
-    # Surface the same quick summary the shell script prints at the end.
+  post_tasks:
+    # Collect a short end-of-run summary without assuming every optional role ran.
     - name: Read Docker version for the summary
       ansible.builtin.command: docker -v
       register: docker_version
       changed_when: false
+      when: enable_docker | default(true) | bool
 
     - name: Read memory and swap usage for the summary
       ansible.builtin.command: free -h
@@ -398,24 +114,25 @@
       ansible.builtin.debug:
         msg: |
           Initialization finished for {{ inventory_hostname }}.
+          Enabled roles:
+            common: true
+            bbr: {{ enable_bbr | default(true) | bool }}
+            swapfile: {{ enable_swap | default(true) | bool }}
+            ufw: {{ enable_ufw | default(true) | bool }}
+            docker_host: {{ enable_docker | default(true) | bool }}
+            tailscale: {{ enable_tailscale | default(true) | bool }}
+          {% if enable_docker | default(true) | bool %}
+
           Docker version: {{ docker_version.stdout }}
+          {% endif %}
 
           Memory report:
           {{ memory_report.stdout }}
-          {% if managed_user_id.rc != 0 %}
+          {% if common_user_created | default(false) %}
 
-          Temporary password for {{ username }}: {{ generated_password.stdout }}
+          Temporary password for {{ username }}: {{ common_generated_password }}
           Save it now if you still need sudo over password auth.
           {% else %}
 
           {{ username }} already existed, so its password was not changed.
           {% endif %}
-
-  handlers:
-    - name: Reload sysctl
-      ansible.builtin.command: sysctl --system
-
-    - name: Restart docker
-      ansible.builtin.service:
-        name: docker
-        state: restarted

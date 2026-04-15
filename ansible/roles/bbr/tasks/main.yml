@@ -1,0 +1,10 @@
+---
+# Keep BBR isolated from `common` so only server-style playbooks opt into it.
+- name: Install BBR sysctl settings
+  ansible.builtin.copy:
+    dest: "{{ bbr_sysctl_file }}"
+    mode: "0644"
+    content: |
+      net.core.default_qdisc = fq
+      net.ipv4.tcp_congestion_control = bbr
+  notify: Reload bbr sysctl

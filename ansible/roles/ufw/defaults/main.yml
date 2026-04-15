@@ -1,0 +1,7 @@
+---
+ufw_packages:
+  - ufw
+
+ufw_allow_http: true
+ufw_allow_https: true
+ufw_extra_rules: []

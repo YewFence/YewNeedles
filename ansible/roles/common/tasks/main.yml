@@ -1,0 +1,174 @@
+---
+# Start from a tiny, reusable baseline instead of baking server-only choices
+# into the shared role.
+- name: Upgrade installed apt packages
+  ansible.builtin.apt:
+    update_cache: true
+    upgrade: dist
+    cache_valid_time: 3600
+  when: common_upgrade_system | bool
+
+- name: Install common baseline packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+  when: common_packages | length > 0
+
+# Initialize summary facts so post_tasks can always read a stable value.
+- name: Initialize common summary facts
+  ansible.builtin.set_fact:
+    common_user_created: false
+    common_generated_password: ""
+  changed_when: false
+
+# Check the user state before creation so we only generate a one-time password
+# the first time the account is created.
+- name: Check whether the managed user already exists
+  ansible.builtin.command: id -u {{ username }}
+  register: common_managed_user_probe
+  changed_when: false
+  failed_when: false
+  when: common_manage_user | bool
+
+- name: Record whether the managed user will be created
+  ansible.builtin.set_fact:
+    common_user_created: "{{ common_managed_user_probe.rc != 0 }}"
+  changed_when: false
+  when: common_manage_user | bool
+
+# Import the sshid.io key into root first so the managed user can inherit the
+# same authorized_keys file if desired.
+- name: Ensure root SSH directory exists
+  ansible.builtin.file:
+    path: /root/.ssh
+    state: directory
+    mode: "0700"
+  when: common_manage_root_ssh_key | bool
+
+- name: Fetch the public key from sshid.io
+  ansible.builtin.uri:
+    url: https://sshid.io/{{ sshid_username }}
+    return_content: true
+  register: common_sshid_key_response
+  when: common_manage_root_ssh_key | bool
+
+- name: Fail when sshid.io returns an empty key
+  ansible.builtin.assert:
+    that:
+      - common_sshid_key_response.content | trim | length > 0
+    fail_msg: "sshid.io returned an empty key for {{ sshid_username }}."
+  when: common_manage_root_ssh_key | bool
+
+- name: Ensure root authorized_keys exists
+  ansible.builtin.file:
+    path: /root/.ssh/authorized_keys
+    state: touch
+    mode: "0600"
+  when: common_manage_root_ssh_key | bool
+
+- name: Install the fetched key for root
+  ansible.builtin.lineinfile:
+    path: /root/.ssh/authorized_keys
+    line: "{{ common_sshid_key_response.content | trim }}"
+    state: present
+  when: common_manage_root_ssh_key | bool
+
+# Keep user creation independent from Docker/Tailscale so `common` stays generic.
+- name: Ensure the managed user exists
+  ansible.builtin.user:
+    name: "{{ username }}"
+    shell: "{{ common_user_shell }}"
+    create_home: true
+    groups: "{{ common_user_groups }}"
+    append: true
+  when: common_manage_user | bool
+
+- name: Ensure the managed user SSH directory exists
+  ansible.builtin.file:
+    path: /home/{{ username }}/.ssh
+    state: directory
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0700"
+  when: common_manage_user | bool
+
+- name: Check whether root authorized_keys exists
+  ansible.builtin.stat:
+    path: /root/.ssh/authorized_keys
+  register: common_root_authorized_keys
+  when: common_manage_user | bool
+
+- name: Copy root authorized_keys to the managed user
+  ansible.builtin.copy:
+    src: /root/.ssh/authorized_keys
+    dest: /home/{{ username }}/.ssh/authorized_keys
+    remote_src: true
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0600"
+  when:
+    - common_manage_user | bool
+    - common_copy_root_authorized_keys | bool
+    - common_root_authorized_keys.stat.exists
+
+- name: Create an empty managed user authorized_keys file when root has none
+  ansible.builtin.file:
+    path: /home/{{ username }}/.ssh/authorized_keys
+    state: touch
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0600"
+  when:
+    - common_manage_user | bool
+    - not common_root_authorized_keys.stat.exists
+
+- name: Generate a temporary password for a newly created user
+  ansible.builtin.command: openssl rand -base64 12
+  register: common_generated_password_cmd
+  changed_when: false
+  no_log: true
+  when:
+    - common_manage_user | bool
+    - common_create_temp_password | bool
+    - common_user_created | bool
+
+- name: Record the generated temporary password for the final summary
+  ansible.builtin.set_fact:
+    common_generated_password: "{{ common_generated_password_cmd.stdout }}"
+  changed_when: false
+  no_log: true
+  when:
+    - common_manage_user | bool
+    - common_create_temp_password | bool
+    - common_user_created | bool
+
+- name: Set the temporary password for a newly created user
+  ansible.builtin.user:
+    name: "{{ username }}"
+    password: "{{ common_generated_password_cmd.stdout | password_hash('sha512') }}"
+    update_password: always
+  no_log: true
+  when:
+    - common_manage_user | bool
+    - common_create_temp_password | bool
+    - common_user_created | bool
+
+# Keep the editor defaults in one place so both root and the managed user get
+# the same terminal editing behavior.
+- name: Install Vim config for root
+  ansible.builtin.copy:
+    dest: /root/.vimrc
+    mode: "0644"
+    content: "{{ common_vimrc_content }}"
+  when: common_manage_vimrc | bool
+
+- name: Install Vim config for the managed user
+  ansible.builtin.copy:
+    dest: /home/{{ username }}/.vimrc
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0644"
+    content: "{{ common_vimrc_content }}"
+  when:
+    - common_manage_user | bool
+    - common_manage_vimrc | bool

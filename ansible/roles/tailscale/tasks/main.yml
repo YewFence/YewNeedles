@@ -1,0 +1,26 @@
+---
+# Keep Tailscale opt-in so future workstation/dev playbooks can ignore it.
+- name: Check whether Tailscale is already installed
+  ansible.builtin.stat:
+    path: /usr/bin/tailscale
+  register: tailscale_binary
+
+- name: Install Tailscale via the official script
+  ansible.builtin.shell: curl -fsSL {{ tailscale_install_script_url }} | sh
+  args:
+    executable: /bin/bash
+  when: not tailscale_binary.stat.exists
+
+- name: Ensure tailscaled is enabled and running
+  ansible.builtin.service:
+    name: tailscaled
+    enabled: true
+    state: started
+
+# The operator assignment stays in this role because it only matters when
+# Tailscale is actually being managed.
+- name: Set the Tailscale operator user
+  ansible.builtin.command: tailscale set --operator={{ username }}
+  register: tailscale_operator_result
+  changed_when: "'operator' in (((tailscale_operator_result.stdout | default('')) ~ (tailscale_operator_result.stderr | default(''))) | lower)"
+  when: tailscale_set_operator | bool
