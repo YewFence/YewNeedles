@@ -1,0 +1,13 @@
+# Copy this file to inventory.yml and replace the sample values.
+# `ansible_port` is both the SSH connection port and the port opened in UFW.
+all:
+  vars:
+    username: yewfence
+    swap_size: 2G
+    sshid_username: yewfence
+
+  hosts:
+    example_vps:
+      ansible_host: 203.0.113.10
+      ansible_user: root
+      ansible_port: 22
