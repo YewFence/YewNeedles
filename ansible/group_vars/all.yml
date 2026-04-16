@@ -1,0 +1,5 @@
+---
+# Retry policy for network fetch tasks (get_url, git clone/pull).
+# Covers transient proxy errors and TLS jitter on all hosts.
+fetch_retries: 3
+fetch_retry_delay: 5

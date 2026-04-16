@@ -14,6 +14,10 @@
     url: "{{ mise_install_script_url }}"
     dest: "{{ mise_install_script_dest }}"
     mode: "0755"
+  register: mise_installer_download
+  retries: "{{ fetch_retries }}"
+  delay: "{{ fetch_retry_delay }}"
+  until: mise_installer_download is not failed
   when: not mise_binary_stat.stat.exists
 
 - name: Install mise for the managed user
