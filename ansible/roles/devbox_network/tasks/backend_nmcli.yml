@@ -246,6 +246,55 @@
     conn_reload: true
     state: present
 
+- name: Dump applied NM connection profile for debugging
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - -f
+      - ipv4.method,ipv4.addresses,ipv4.gateway,ipv4.dns,ipv4.ignore-auto-routes,ipv4.never-default,connection.autoconnect
+      - connection
+      - show
+      - "{{ devbox_network_nm_connection_name }}"
+  register: devbox_network_nm_profile_dump
+  changed_when: false
+
+- name: Dump all active default routes for debugging
+  ansible.builtin.command:
+    argv:
+      - ip
+      - -o
+      - route
+      - show
+      - default
+  register: devbox_network_default_routes_dump
+  changed_when: false
+
+- name: Show NM profile and route state before activation
+  ansible.builtin.debug:
+    msg: |
+      === NM profile: {{ devbox_network_nm_connection_name }} ===
+      {{ devbox_network_nm_profile_dump.stdout }}
+
+      === Active default routes ===
+      {{ devbox_network_default_routes_dump.stdout }}
+
+- name: Dump all NM connections on the selected interface for debugging
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - -f
+      - NAME,UUID,TYPE,DEVICE,STATE,ACTIVE
+      - connection
+      - show
+  register: devbox_network_nm_all_connections_dump
+  changed_when: false
+
+- name: Show all NM connections for debugging
+  ansible.builtin.debug:
+    msg: |
+      === All NM connections ===
+      {{ devbox_network_nm_all_connections_dump.stdout }}
+
 - name: Compute the SSH reconnect target after the network change
   ansible.builtin.set_fact:
     devbox_network_reconnect_target: >-
@@ -356,18 +405,14 @@
   retries: 10
   delay: 2
   until: >-
-    {{
-      devbox_network_effective_route_probe.rc == 0
-      and (
-        (
-          devbox_network_effective_route_probe.stdout
-          | default('', true)
-          | regex_findall('via ([^ ]+)')
-          | first
-          | default('', true)
-        ) == devbox_network_gateway
-      )
-    }}
+    devbox_network_effective_route_probe.rc == 0
+    and (
+      devbox_network_effective_route_probe.stdout
+      | default('', true)
+      | regex_findall('via ([^ ]+)')
+      | first
+      | default('', true)
+    ) == devbox_network_gateway
 
 - name: Record the effective default route after the network change
   ansible.builtin.set_fact:
