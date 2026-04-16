@@ -36,8 +36,8 @@
   changed_when: false
   when: common_manage_user | bool
 
-# Import the sshid.io key into root first so the managed user can inherit the
-# same authorized_keys file if desired.
+# The authorized_keys payload is prepared locally so the operator can confirm
+# the exact keys before anything on the server is overwritten.
 - name: Ensure root SSH directory exists
   ansible.builtin.file:
     path: /root/.ssh
@@ -45,32 +45,20 @@
     mode: "0700"
   when: common_manage_root_ssh_key | bool
 
-- name: Fetch the public key from sshid.io
-  ansible.builtin.uri:
-    url: https://sshid.io/{{ sshid_username | default(username) }}
-    return_content: true
-  register: common_sshid_key_response
-  when: common_manage_root_ssh_key | bool
-
-- name: Fail when sshid.io returns an empty key
+- name: Require prepared authorized_keys content when SSH keys are managed
   ansible.builtin.assert:
     that:
-      - common_sshid_key_response.content | trim | length > 0
-    fail_msg: "sshid.io returned an empty key for {{ sshid_username | default(username) }}."
-  when: common_manage_root_ssh_key | bool
+      - common_authorized_keys_content | trim | length > 0
+    fail_msg: >-
+      Provide common_authorized_keys_content before managing authorized_keys.
+  when:
+    - common_manage_root_ssh_key | bool or common_copy_root_authorized_keys | bool
 
-- name: Ensure root authorized_keys exists
-  ansible.builtin.file:
-    path: /root/.ssh/authorized_keys
-    state: touch
+- name: Overwrite root authorized_keys with the prepared keys
+  ansible.builtin.copy:
+    dest: /root/.ssh/authorized_keys
     mode: "0600"
-  when: common_manage_root_ssh_key | bool
-
-- name: Install the fetched key for root
-  ansible.builtin.lineinfile:
-    path: /root/.ssh/authorized_keys
-    line: "{{ common_sshid_key_response.content | trim }}"
-    state: present
+    content: "{{ common_authorized_keys_content | trim ~ '\n' }}"
   when: common_manage_root_ssh_key | bool
 
 # Keep user creation independent from Docker/Tailscale so `common` stays generic.
@@ -92,26 +80,18 @@
     mode: "0700"
   when: common_manage_user | bool
 
-- name: Check whether root authorized_keys exists
-  ansible.builtin.stat:
-    path: /root/.ssh/authorized_keys
-  register: common_root_authorized_keys
-  when: common_manage_user | bool
-
-- name: Copy root authorized_keys to the managed user
+- name: Overwrite the managed user authorized_keys with the prepared keys
   ansible.builtin.copy:
-    src: /root/.ssh/authorized_keys
     dest: /home/{{ username }}/.ssh/authorized_keys
-    remote_src: true
     owner: "{{ username }}"
     group: "{{ username }}"
     mode: "0600"
+    content: "{{ common_authorized_keys_content | trim ~ '\n' }}"
   when:
     - common_manage_user | bool
     - common_copy_root_authorized_keys | bool
-    - common_root_authorized_keys.stat.exists
 
-- name: Create an empty managed user authorized_keys file when root has none
+- name: Create an empty managed user authorized_keys file when not copying keys
   ansible.builtin.file:
     path: /home/{{ username }}/.ssh/authorized_keys
     state: touch
@@ -120,7 +100,8 @@
     mode: "0600"
   when:
     - common_manage_user | bool
-    - not common_root_authorized_keys.stat.exists
+    - not common_copy_root_authorized_keys | bool
+
 
 - name: Generate a temporary password for a newly created user
   ansible.builtin.command: openssl rand -base64 12

@@ -1,0 +1,7 @@
+# Add repository-managed SSH public keys here, one key per line.
+# These keys are merged with the per-host sshid.io key before authorized_keys
+# is overwritten on the remote host.
+
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEICp+d6xPjDaDaYQ+i44iifDwKYIgl5pW2yc1QwX14H # Bitwarden - Windows PC
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBV6JJk/F+ZBSa2uUOzbVKyUUe9mahI8qhltSLJT9cVJ # Bitwarden - Windows Laptop
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHr8pzQ5mKwz1Brl1SyI9oo+8w22TLJQSJhMHSClPmOc # Bitwarden - Macbook Air

@@ -3,8 +3,74 @@
   hosts: localhost
   connection: local
   gather_facts: false
+  vars:
+    server_init_repo_authorized_keys_file: "{{ playbook_dir }}/files/server_authorized_keys.pub"
 
   tasks:
+    - name: Read the repository-managed SSH public keys
+      ansible.builtin.set_fact:
+        server_init_repo_authorized_keys_content: >-
+          {{ lookup('ansible.builtin.file', server_init_repo_authorized_keys_file) }}
+      changed_when: false
+
+    - name: Fetch the sshid.io key for each server from localhost
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -fsSL
+          - >-
+            https://sshid.io/{{
+              hostvars[item].sshid_username
+              | default(hostvars[item].username | default(username | default('')))
+            }}
+      loop: "{{ groups['servers'] | default([]) }}"
+      register: server_init_sshid_fetch
+      changed_when: false
+
+    - name: Fail when sshid.io returns an empty key
+      ansible.builtin.assert:
+        that:
+          - item.stdout | trim | length > 0
+        fail_msg: >-
+          sshid.io returned an empty key for
+          {{
+            hostvars[item.item].sshid_username
+            | default(hostvars[item.item].username | default(username | default('UNSET')))
+          }}.
+      loop: "{{ server_init_sshid_fetch.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Build the authorized_keys payload for each server
+      ansible.builtin.set_fact:
+        server_init_authorized_keys_map: >-
+          {{
+            server_init_authorized_keys_map | default({}) |
+            combine({
+              item.item: (
+                (
+                  item.stdout.splitlines()
+                  + server_init_repo_authorized_keys_content.splitlines()
+                )
+                | map('trim')
+                | reject('equalto', '')
+                | unique
+                | join('\n')
+              )
+            })
+          }}
+      loop: "{{ server_init_sshid_fetch.results }}"
+      changed_when: false
+
+    - name: Fail when the combined authorized_keys payload is empty
+      ansible.builtin.assert:
+        that:
+          - server_init_authorized_keys_map[item] | default('') | trim | length > 0
+        fail_msg: "The combined authorized_keys payload is empty for {{ item }}."
+      loop: "{{ groups['servers'] | default([]) }}"
+      loop_control:
+        label: "{{ item }}"
+
     - name: Preview host settings before any remote changes
       ansible.builtin.debug:
         msg: |
@@ -24,6 +90,11 @@
             enable_ufw: {{ hostvars[host].enable_ufw | default(true) }}
             enable_docker: {{ hostvars[host].enable_docker | default(true) }}
             enable_tailscale: {{ hostvars[host].enable_tailscale | default(true) }}
+            repo_authorized_keys_file: {{ server_init_repo_authorized_keys_file }}
+            authorized_keys_preview:
+          {% for key_line in server_init_authorized_keys_map[host].split('\n') %}
+            - {{ key_line }}
+          {% endfor %}
           {% endfor %}
 
     - name: Require a final yes before continuing
@@ -41,6 +112,9 @@
   serial: 1
   become: true
   gather_facts: false
+  vars:
+    common_authorized_keys_content: >-
+      {{ hostvars['localhost'].server_init_authorized_keys_map[inventory_hostname] | default('') }}
 
   pre_tasks:
     # Fail before any remote changes if the required connection and user vars are
