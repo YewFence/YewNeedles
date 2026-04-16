@@ -15,8 +15,8 @@
             ansible_host: {{ hostvars[host].ansible_host | default(host) }}
             ansible_user: {{ hostvars[host].ansible_user | default(username | default('UNSET')) }}
             username: {{ hostvars[host].username | default(username | default('UNSET')) }}
-            dev_enable_homebrew: {{ hostvars[host].dev_enable_homebrew | default(true) }}
             dev_enable_oh_my_zsh: {{ hostvars[host].dev_enable_oh_my_zsh | default(true) }}
+            dev_enable_mise: {{ hostvars[host].dev_enable_mise | default(true) }}
             dev_enable_zellij: {{ hostvars[host].dev_enable_zellij | default(true) }}
             dev_enable_docker: {{ hostvars[host].dev_enable_docker | default(false) }}
             dev_enable_tailscale: {{ hostvars[host].dev_enable_tailscale | default(false) }}
@@ -57,15 +57,15 @@
       ansible.builtin.include_role:
         name: common
 
-    - name: Install and configure Homebrew for development hosts
-      ansible.builtin.include_role:
-        name: homebrew
-      when: dev_enable_homebrew | default(true) | bool
-
     - name: Install and configure Oh My Zsh for the managed user
       ansible.builtin.include_role:
         name: oh_my_zsh
       when: dev_enable_oh_my_zsh | default(true) | bool
+
+    - name: Install mise and render the global tool configuration
+      ansible.builtin.include_role:
+        name: mise
+      when: dev_enable_mise | default(true) | bool
 
     - name: Install and configure zellij for interactive shells
       ansible.builtin.include_role:
@@ -83,14 +83,12 @@
       when: dev_enable_tailscale | default(false) | bool
 
   post_tasks:
-    - name: Read Homebrew version for the summary
-      ansible.builtin.command: "{{ homebrew_brew_bin }} --version"
-      register: homebrew_version
+    - name: Read mise version for the summary
+      ansible.builtin.command: "{{ mise_managed_binary_path }} --version"
+      register: mise_version
       changed_when: false
       when:
-        - dev_enable_homebrew | default(true) | bool
-        - homebrew_brew_bin is defined
-        - homebrew_brew_bin | length > 0
+        - dev_enable_mise | default(true) | bool
 
     - name: Read Docker version for the summary
       ansible.builtin.command: docker -v
@@ -104,15 +102,15 @@
           Development initialization finished for {{ inventory_hostname }}.
           Enabled roles:
             common: true
-            homebrew: {{ dev_enable_homebrew | default(true) | bool }}
             oh_my_zsh: {{ dev_enable_oh_my_zsh | default(true) | bool }}
+            mise: {{ dev_enable_mise | default(true) | bool }}
             zellij: {{ dev_enable_zellij | default(true) | bool }}
             docker_host: {{ dev_enable_docker | default(false) | bool }}
             tailscale: {{ dev_enable_tailscale | default(false) | bool }}
-          {% if dev_enable_homebrew | default(true) | bool and homebrew_version is defined %}
+          {% if dev_enable_mise | default(true) | bool and mise_version is defined %}
 
-          Homebrew version:
-          {{ homebrew_version.stdout_lines | join('\n') }}
+          Mise version:
+          {{ mise_version.stdout_lines | join('\n') }}
           {% endif %}
           {% if dev_enable_docker | default(false) | bool and docker_version is defined %}
 

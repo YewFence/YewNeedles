@@ -1,0 +1,27 @@
+---
+mise_install_script_url: https://mise.run
+mise_install_script_dest: /tmp/mise-install.sh
+mise_binary_path: /home/{{ username }}/.local/bin/mise
+mise_config_dir: /home/{{ username }}/.config/mise
+mise_config_file: "{{ mise_config_dir }}/config.toml"
+mise_shell_activation_targets:
+  - path: /home/{{ username }}/.bashrc
+    shell: bash
+  - path: /home/{{ username }}/.zshrc
+    shell: zsh
+mise_tools_common:
+  "fzf": latest
+  "zoxide": latest
+  "bat": latest
+  "ripgrep": latest
+mise_tools_zellij:
+  "zellij": latest
+  "fastfetch": latest
+mise_enable_zellij_tools: false
+mise_tools_extra: {}
+mise_tools: >-
+  {{
+    mise_tools_common
+    | combine((mise_tools_zellij if mise_enable_zellij_tools | bool else {}), recursive=True)
+    | combine(mise_tools_extra, recursive=True)
+  }}

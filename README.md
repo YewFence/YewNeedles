@@ -26,9 +26,13 @@ ansible-playbook -i ansible/inventory.yml ansible/init-server.yml
 使用 `ansible/init-devbox.yml` 初始化 PVE VM / WSL：
 
 - 共享基线：基础包、用户、Vim 配置
-- Homebrew 安装与 shellenv 注入
 - Oh My Zsh 与常用插件
+- mise 安装、shell 激活与由 Ansible 变量生成的全局 `config.toml`
 - zellij 与自动 attach 配置
+
+`mise` 角色会渲染远端 `~/.config/mise/config.toml`，默认安装一组通用 CLI。
+当 `dev_enable_zellij: true` 时，会额外把 `zellij` 和 `fastfetch` 写进这份全局配置，
+然后统一执行 `mise install`。
 
 ```bash
 ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml
@@ -74,7 +78,7 @@ ansible/
     ufw/
     docker_host/
     tailscale/
-    homebrew/
+    mise/
     oh_my_zsh/
     zellij/
 ```

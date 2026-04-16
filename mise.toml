@@ -1,0 +1,3 @@
+[tools]
+ansible = { version = "latest", pipx_args = "--include-deps", uvx = "false" }
+"pipx:ansible-lint" = "latest"

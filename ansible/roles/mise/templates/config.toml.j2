@@ -1,0 +1,19 @@
+{% macro toml_value(value) -%}
+{%- if value is string -%}
+"{{ value | replace('\\', '\\\\') | replace('"', '\\"') }}"
+{%- elif value is boolean -%}
+{{ 'true' if value else 'false' }}
+{%- elif value is number -%}
+{{ value }}
+{%- elif value is mapping -%}
+{ {% for key, child in value | dictsort %}"{{ key }}" = {{ toml_value(child) }}{% if not loop.last %}, {% endif %}{% endfor %} }
+{%- elif value is sequence -%}
+[{% for item in value %}{{ toml_value(item) }}{% if not loop.last %}, {% endif %}{% endfor %}]
+{%- else -%}
+"{{ value | string | replace('\\', '\\\\') | replace('"', '\\"') }}"
+{%- endif -%}
+{%- endmacro %}
+[tools]
+{% for tool_name, tool_config in mise_tools | dictsort %}
+"{{ tool_name }}" = {{ toml_value(tool_config) }}
+{% endfor %}

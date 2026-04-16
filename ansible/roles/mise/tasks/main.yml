@@ -1,0 +1,88 @@
+---
+- name: Record the managed user's mise binary path for later tasks
+  ansible.builtin.set_fact:
+    mise_managed_binary_path: "{{ mise_binary_path }}"
+  changed_when: false
+
+- name: Check whether mise is already installed for the managed user
+  ansible.builtin.stat:
+    path: "{{ mise_binary_path }}"
+  register: mise_binary_stat
+
+- name: Download the mise installer
+  ansible.builtin.get_url:
+    url: "{{ mise_install_script_url }}"
+    dest: "{{ mise_install_script_dest }}"
+    mode: "0755"
+  when: not mise_binary_stat.stat.exists
+
+- name: Install mise for the managed user
+  ansible.builtin.command:
+    argv:
+      - /bin/sh
+      - "{{ mise_install_script_dest }}"
+    creates: "{{ mise_binary_path }}"
+  environment:
+    HOME: /home/{{ username }}
+  become: true
+  become_user: "{{ username }}"
+  when: not mise_binary_stat.stat.exists
+
+- name: Ensure the managed user's mise config directory exists
+  ansible.builtin.file:
+    path: "{{ mise_config_dir }}"
+    state: directory
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0755"
+
+- name: Render the global mise config for the managed user
+  ansible.builtin.template:
+    src: config.toml.j2
+    dest: "{{ mise_config_file }}"
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0644"
+  register: mise_config_render
+
+- name: Check whether the global mise config still has missing tools
+  ansible.builtin.command:
+    argv:
+      - "{{ mise_binary_path }}"
+      - ls
+      - --global
+      - --missing
+      - --no-header
+  environment:
+    HOME: /home/{{ username }}
+  become: true
+  become_user: "{{ username }}"
+  register: mise_missing_tools
+  changed_when: false
+
+- name: Install tools declared in the rendered global mise config
+  ansible.builtin.command:
+    argv:
+      - "{{ mise_binary_path }}"
+      - install
+  environment:
+    HOME: /home/{{ username }}
+  become: true
+  become_user: "{{ username }}"
+  changed_when: true
+  when:
+    - mise_config_render is changed or not mise_binary_stat.stat.exists or mise_missing_tools.stdout | trim | length > 0
+
+- name: Install mise shell activation blocks
+  ansible.builtin.blockinfile:
+    path: "{{ item.path }}"
+    create: true
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0644"
+    marker: "# {mark} YewNeedles Mise"
+    block: |
+      if [ -x "{{ mise_binary_path }}" ]; then
+        eval "$({{ mise_binary_path }} activate {{ item.shell }})"
+      fi
+  loop: "{{ mise_shell_activation_targets }}"
