@@ -19,6 +19,7 @@ __pycache__/
 # Ansible local state
 .ansible/
 ansible/inventory.yml
+ansible/.ssh_known_hosts
 ansible.log
 *.retry
 
