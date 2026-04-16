@@ -177,10 +177,16 @@ ansible/
     zellij/
 ```
 
-## 旧脚本状态
+## tools/ 目录
 
-仓库根目录下的 `*.sh` 仍然保留，主要作为迁移参考和临时兜底入口。
-新增能力优先放进 Ansible，而不是继续扩展旧脚本。
+根目录 `tools/` 下保留了几个运维工具脚本，它们是诊断/迁移性质的，不适合用 Ansible 表达：
+
+- `check-compose-volumes.sh` — 检测 compose 文件中挂载的命名卷
+- `migrate-volume.sh` — 交互式迁移 Docker 命名卷
+- `rename-docker.sh` — 批量重命名 Docker 相关目录
+- `kopia-server.sh` — 启动 Kopia 备份服务
+- `ts-certs.sh` — Tailscale 证书手动续期
+- `deploy-singbox.sh` — 原始部署脚本，已由 `singbox` role 取代，仅作参考
 
 ## Devbox 建模建议
 
