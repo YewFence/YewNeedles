@@ -1,0 +1,7 @@
+---
+devbox_network_manage: true
+devbox_network_preset: pve_vm
+devbox_network_backend: nmcli
+devbox_network_gateway: 192.168.8.2
+devbox_network_dns_servers:
+  - 192.168.8.2

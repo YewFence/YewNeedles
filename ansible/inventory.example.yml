@@ -232,6 +232,20 @@ all:
         # Optional: install Tailscale on development hosts.
         # dev_enable_tailscale: false
 
+        # Optional: enable managed gateway and DNS overrides for devboxes.
+        # The repo ships preset group defaults in `group_vars/wsl.yml` and
+        # `group_vars/pve_vms.yml`, so you usually override these only when a
+        # specific machine should diverge from its platform preset.
+        # devbox_network_manage: false
+        # devbox_network_preset: disabled
+        # devbox_network_backend: disabled
+        # devbox_network_interface: ""
+        # devbox_network_gateway: 192.168.8.2
+        # devbox_network_dns_servers:
+        #   - 192.168.8.2
+        # devbox_network_static_ipv4: 192.168.8.10/24
+        # devbox_network_reconnect_host: 192.168.8.10
+
         # Optional: when `true`, also add zellij-related tools to the rendered
         # mise config. The repo default already derives this from zellij.
         # mise_enable_zellij_tools: true
@@ -339,6 +353,16 @@ all:
               # mise_tools_extra:
               #   node: "22"
 
+              # Optional: override the WSL network preset from
+              # `ansible/group_vars/wsl.yml` for this one instance.
+              # devbox_network_backend: wsl
+              # devbox_network_interface: ""
+              # devbox_network_gateway: 192.168.8.2
+              # devbox_network_dns_servers:
+              #   - 192.168.8.2
+              # devbox_network_static_ipv4: ""
+              # devbox_network_reconnect_host: ""
+
               # Optional: read this host's sudo password from a controller-side
               # environment variable. The first variable names the env var;
               # the second maps it into the built-in Ansible host var.
@@ -364,6 +388,17 @@ all:
               # environment variable.
               # become_password_env_var: SUDO_PASS_PVE_VM
               # ansible_become_password: "{{ lookup('ansible.builtin.env', become_password_env_var) }}"
+
+              # Optional: override the PVE VM network preset from
+              # `ansible/group_vars/pve_vms.yml` when this guest needs
+              # different routing or DNS.
+              # devbox_network_backend: nmcli
+              # devbox_network_interface: ens18
+              # devbox_network_gateway: 192.168.8.2
+              # devbox_network_dns_servers:
+              #   - 192.168.8.2
+              # devbox_network_static_ipv4: 192.168.8.10/24
+              # devbox_network_reconnect_host: 192.168.8.10
 
             example_remote_dev_vm:
               # Publicly reachable dev VM or a VM reached through a bastion/VPN.

@@ -15,6 +15,13 @@
             ansible_host: {{ hostvars[host].ansible_host | default(host) }}
             ansible_user: {{ hostvars[host].ansible_user | default(username | default('UNSET')) }}
             username: {{ hostvars[host].username | default(username | default('UNSET')) }}
+            devbox_network_manage: {{ hostvars[host].devbox_network_manage | default(false) }}
+            devbox_network_preset: {{ hostvars[host].devbox_network_preset | default('disabled') }}
+            devbox_network_backend: {{ hostvars[host].devbox_network_backend | default('disabled') }}
+            devbox_network_interface: {{ hostvars[host].devbox_network_interface | default('auto', true) }}
+            devbox_network_gateway: {{ hostvars[host].devbox_network_gateway | default('UNSET') }}
+            devbox_network_dns_servers: {{ hostvars[host].devbox_network_dns_servers | default([]) | join(', ') }}
+            devbox_network_static_ipv4: {{ hostvars[host].devbox_network_static_ipv4 | default('auto/current', true) }}
             dev_enable_oh_my_zsh: {{ hostvars[host].dev_enable_oh_my_zsh | default(true) }}
             dev_enable_mise: {{ hostvars[host].dev_enable_mise | default(true) }}
             dev_enable_zellij: {{ hostvars[host].dev_enable_zellij | default(true) }}
@@ -53,6 +60,11 @@
         fail_msg: Define a non-root username before running the devbox playbook.
 
   tasks:
+    - name: Apply devbox-specific network overrides before package work
+      ansible.builtin.include_role:
+        name: devbox_network
+      when: devbox_network_manage | default(false) | bool
+
     - name: Apply the shared baseline used by both servers and devboxes
       ansible.builtin.include_role:
         name: common
@@ -101,12 +113,32 @@
         msg: |
           Development initialization finished for {{ inventory_hostname }}.
           Enabled roles:
+            devbox_network: {{ devbox_network_manage | default(false) | bool }}
             common: true
             oh_my_zsh: {{ dev_enable_oh_my_zsh | default(true) | bool }}
             mise: {{ dev_enable_mise | default(true) | bool }}
             zellij: {{ dev_enable_zellij | default(true) | bool }}
             docker_host: {{ dev_enable_docker | default(false) | bool }}
             tailscale: {{ dev_enable_tailscale | default(false) | bool }}
+          Network preset: {{ devbox_network_preset | default('disabled') }}
+          Configured backend: {{ devbox_network_backend | default('disabled') }}
+          Network backend: {{ devbox_network_applied_backend | default('disabled') }}
+          Configured interface override: {{ devbox_network_interface | default('') | default('auto', true) }}
+          Selected interface: {{ devbox_network_selected_interface | default('unknown') }}
+          NetworkManager connection: {{ devbox_network_selected_connection_name | default('unknown') }}
+          Original connect host: {{ devbox_network_original_ansible_host | default('unknown') }}
+          Reconnect target: {{ devbox_network_reconnect_target | default('unchanged') | default('unchanged', true) }}
+          Inventory update needed: {{ devbox_network_inventory_update_needed | default(false) | bool }}
+          Configured static IPv4: {{ devbox_network_static_ipv4 | default('') | default('auto/current', true) }}
+          Default gateway: {{ devbox_network_gateway | default('unchanged') }}
+          DNS servers: {{ devbox_network_dns_servers | default([]) | join(', ') }}
+          Gateway persistence confirmed: {{ devbox_network_gateway_persistent | default(false) | bool }}
+          {% if devbox_network_inventory_update_needed | default(false) | bool %}
+
+          WARNING: update ansible_host in inventory from
+          {{ devbox_network_original_ansible_host }} to
+          {{ devbox_network_reconnect_target }}.
+          {% endif %}
           {% if dev_enable_mise | default(true) | bool and mise_version is defined %}
 
           Mise version:

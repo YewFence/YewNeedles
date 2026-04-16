@@ -1,0 +1,294 @@
+---
+- name: Install NetworkManager on non-WSL devboxes
+  ansible.builtin.apt:
+    name: "{{ devbox_network_nm_packages }}"
+    state: present
+
+- name: Ensure NetworkManager drop-in directory exists
+  ansible.builtin.file:
+    path: "{{ devbox_network_nm_conf_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Allow NetworkManager to manage ifupdown interfaces on Debian-like hosts
+  ansible.builtin.copy:
+    dest: "{{ devbox_network_nm_ifupdown_conf_path }}"
+    mode: "0644"
+    content: |
+      [ifupdown]
+      managed=true
+  notify: Reload NetworkManager
+
+- name: Ensure NetworkManager is enabled and running
+  ansible.builtin.service:
+    name: "{{ devbox_network_nm_service_name }}"
+    enabled: true
+    state: started
+
+- name: Flush NetworkManager handlers before nmcli changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Validate the configured interface override when one is provided
+  ansible.builtin.command:
+    argv:
+      - ip
+      - -o
+      - link
+      - show
+      - dev
+      - "{{ devbox_network_interface }}"
+  register: devbox_network_configured_interface_probe
+  changed_when: false
+  when: devbox_network_interface | length > 0
+
+- name: Detect the interface that currently carries the default route
+  ansible.builtin.command:
+    argv:
+      - ip
+      - -o
+      - route
+      - show
+      - default
+  register: devbox_network_default_route
+  changed_when: false
+  when: devbox_network_interface | length == 0
+
+- name: Select the interface that NetworkManager should manage
+  ansible.builtin.set_fact:
+    devbox_network_selected_interface: >-
+      {{
+        devbox_network_interface
+        if devbox_network_interface | length > 0
+        else (
+          devbox_network_default_route.stdout
+          | regex_search('(?<=\\bdev\\s)\\S+')
+          | default('')
+        )
+      }}
+  changed_when: false
+
+- name: Require a detected default-route interface for the nmcli backend
+  ansible.builtin.assert:
+    that:
+      - devbox_network_selected_interface | length > 0
+    fail_msg: >-
+      Could not determine which interface carries the default route, so the
+      NetworkManager profile cannot be updated safely.
+
+- name: Read the NetworkManager connection currently attached to the default interface
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - -g
+      - GENERAL.CONNECTION
+      - device
+      - show
+      - "{{ devbox_network_selected_interface }}"
+  register: devbox_network_nm_current_connection
+  changed_when: false
+
+- name: Record whether NetworkManager already has an active connection profile
+  ansible.builtin.set_fact:
+    devbox_network_nm_existing_connection_name: "{{ devbox_network_nm_current_connection.stdout | trim }}"
+    devbox_network_nm_existing_connection_found: >-
+      {{
+        (devbox_network_nm_current_connection.stdout | trim | length > 0)
+        and (devbox_network_nm_current_connection.stdout | trim != '--')
+      }}
+    devbox_network_nm_connection_name: >-
+      {{
+        (
+          devbox_network_nm_current_connection.stdout | trim
+          if (
+            (devbox_network_nm_current_connection.stdout | trim | length > 0)
+            and (devbox_network_nm_current_connection.stdout | trim != '--')
+          )
+          else devbox_network_nm_connection_prefix ~ '-' ~ devbox_network_selected_interface
+        )
+      }}
+  changed_when: false
+
+- name: Record the selected NetworkManager connection name for the final summary
+  ansible.builtin.set_fact:
+    devbox_network_selected_connection_name: "{{ devbox_network_nm_connection_name }}"
+  changed_when: false
+
+- name: Read current IPv4 addresses for the default interface when creating a new profile
+  ansible.builtin.command:
+    argv:
+      - ip
+      - -o
+      - -4
+      - addr
+      - show
+      - dev
+      - "{{ devbox_network_selected_interface }}"
+      - scope
+      - global
+  register: devbox_network_current_ipv4
+  changed_when: false
+  when: not devbox_network_nm_existing_connection_found
+
+- name: Derive fallback IPv4 profile data from the current interface state
+  ansible.builtin.set_fact:
+    devbox_network_nm_current_ip4: "{{ devbox_network_current_ipv4.stdout | regex_findall('inet\\s+(\\S+)') }}"
+    devbox_network_nm_current_method4: >-
+      {{
+        'auto'
+        if devbox_network_current_ipv4.stdout is search('\\bdynamic\\b')
+        else 'manual'
+      }}
+  changed_when: false
+  when: not devbox_network_nm_existing_connection_found
+
+- name: Require at least one IPv4 address when creating a new manual NetworkManager profile
+  ansible.builtin.assert:
+    that:
+      - devbox_network_nm_current_method4 == 'auto' or devbox_network_nm_current_ip4 | length > 0
+    fail_msg: >-
+      No active NetworkManager connection exists yet, and the current interface
+      does not expose an IPv4 address that can be preserved in a new profile.
+  when: not devbox_network_nm_existing_connection_found
+
+- name: Show the device and connection chosen for NetworkManager updates
+  ansible.builtin.debug:
+    msg: |
+      NetworkManager target:
+        interface: {{ devbox_network_selected_interface }}
+        connection: {{ devbox_network_nm_connection_name }}
+        static_ipv4: {{ devbox_network_static_ipv4 | default('auto/current', true) }}
+
+- name: Update the existing NetworkManager profile with gateway and DNS overrides
+  community.general.nmcli:
+    conn_name: "{{ devbox_network_nm_connection_name }}"
+    ifname: "{{ devbox_network_selected_interface }}"
+    type: ethernet
+    method4: "{{ 'manual' if devbox_network_static_ipv4 | length > 0 else omit }}"
+    ip4: "{{ [devbox_network_static_ipv4] if devbox_network_static_ipv4 | length > 0 else omit }}"
+    dns4: "{{ devbox_network_dns_servers }}"
+    dns4_ignore_auto: true
+    gw4: "{{ devbox_network_gateway }}"
+    gw4_ignore_auto: true
+    autoconnect: true
+    conn_reload: true
+    state: present
+  when: devbox_network_nm_existing_connection_found
+
+- name: Create a managed NetworkManager profile when the interface has none yet
+  community.general.nmcli:
+    conn_name: "{{ devbox_network_nm_connection_name }}"
+    ifname: "{{ devbox_network_selected_interface }}"
+    type: ethernet
+    method4: >-
+      {{
+        'manual'
+        if devbox_network_static_ipv4 | length > 0
+        else devbox_network_nm_current_method4
+      }}
+    ip4: >-
+      {{
+        [devbox_network_static_ipv4]
+        if devbox_network_static_ipv4 | length > 0
+        else (
+          devbox_network_nm_current_ip4
+          if devbox_network_nm_current_method4 == 'manual'
+          else omit
+        )
+      }}
+    dns4: "{{ devbox_network_dns_servers }}"
+    dns4_ignore_auto: true
+    gw4: "{{ devbox_network_gateway }}"
+    gw4_ignore_auto: true
+    autoconnect: true
+    conn_reload: true
+    state: present
+  when: not devbox_network_nm_existing_connection_found
+
+- name: Activate the managed NetworkManager profile
+  community.general.nmcli:
+    conn_name: "{{ devbox_network_nm_connection_name }}"
+    conn_reload: true
+    state: present
+
+- name: Compute the SSH reconnect target after the network change
+  ansible.builtin.set_fact:
+    devbox_network_reconnect_target: >-
+      {{
+        devbox_network_reconnect_host
+        | default(
+            (
+              devbox_network_static_ipv4
+              | regex_replace('/.*$', '')
+            ),
+            true
+          )
+        | default(ansible_host | default(inventory_hostname), true)
+      }}
+  changed_when: false
+
+- name: Record whether inventory should be updated after the IP change
+  ansible.builtin.set_fact:
+    devbox_network_inventory_update_needed: >-
+      {{
+        devbox_network_static_ipv4 | length > 0
+        and devbox_network_reconnect_target != devbox_network_original_ansible_host
+      }}
+  changed_when: false
+
+- name: Show the reconnect target before activating the new NetworkManager profile
+  ansible.builtin.debug:
+    msg: >-
+      Activating {{ devbox_network_nm_connection_name }} in the background and
+      waiting for SSH on {{ devbox_network_reconnect_target }}:{{ ansible_port | default(22) }}.
+
+- name: Activate the managed NetworkManager profile asynchronously
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - connection
+      - up
+      - "{{ devbox_network_nm_connection_name }}"
+  async: "{{ devbox_network_activation_async_timeout }}"
+  poll: 0
+  register: devbox_network_activation_job
+
+- name: Update ansible_host to the reconnect target when the IP changes
+  ansible.builtin.set_fact:
+    ansible_host: "{{ devbox_network_reconnect_target }}"
+  changed_when: false
+  when: devbox_network_reconnect_target != (ansible_host | default(inventory_hostname))
+
+- name: Reset the SSH control connection before waiting for reconnect
+  ansible.builtin.meta: reset_connection
+
+- name: Wait for the SSH port on the reconnect target to come back
+  ansible.builtin.wait_for:
+    host: "{{ devbox_network_reconnect_target }}"
+    port: "{{ ansible_port | default(22) }}"
+    delay: "{{ devbox_network_wait_delay }}"
+    timeout: "{{ devbox_network_wait_timeout }}"
+    sleep: 2
+    state: started
+  delegate_to: localhost
+  become: false
+
+- name: Wait for the host to become reachable again over Ansible transport
+  ansible.builtin.wait_for_connection:
+    delay: 1
+    timeout: "{{ devbox_network_wait_timeout }}"
+    sleep: 2
+
+- name: Warn that inventory should be updated to the new IP
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: this run switched the reconnect target from
+      {{ devbox_network_original_ansible_host }} to
+      {{ devbox_network_reconnect_target }}. Update ansible_host in your
+      inventory so future runs keep using the new address.
+  when: devbox_network_inventory_update_needed | bool
+
+- name: Record nmcli as the applied devbox network backend
+  ansible.builtin.set_fact:
+    devbox_network_applied_backend: nmcli
+    devbox_network_gateway_persistent: true
+  changed_when: false

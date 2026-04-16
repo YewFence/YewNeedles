@@ -1,0 +1,4 @@
+# Managed by Ansible via the devbox_network role.
+{% for server in devbox_network_dns_servers %}
+nameserver {{ server }}
+{% endfor %}

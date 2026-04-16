@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+
+TARGET_GATEWAY="{{ devbox_network_gateway }}"
+
+current_route="$(ip -4 route show default | head -n 1)"
+
+if [ -z "${current_route}" ]; then
+  echo "no default route detected"
+  exit 0
+fi
+
+current_gateway="$(printf '%s\n' "${current_route}" | awk '{print $3}')"
+current_interface="$(printf '%s\n' "${current_route}" | awk '{print $5}')"
+
+if [ -z "${current_interface}" ]; then
+  echo "no default interface detected"
+  exit 0
+fi
+
+if [ "${current_gateway}" = "${TARGET_GATEWAY}" ]; then
+  echo "default route already uses ${TARGET_GATEWAY}"
+  exit 0
+fi
+
+ip route replace default via "${TARGET_GATEWAY}" dev "${current_interface}"
+echo "updated default route to ${TARGET_GATEWAY} on ${current_interface}"

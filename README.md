@@ -26,6 +26,9 @@ ansible-playbook -i ansible/inventory.yml ansible/init-server.yml
 使用 `ansible/init-devbox.yml` 初始化 PVE VM / WSL：
 
 - 共享基线：基础包、用户、Vim 配置
+- 非 WSL devbox 默认安装 NetworkManager，并通过 `community.general.nmcli` 管理网关和 DNS
+- 需要时可显式指定接口名，或设置静态 IPv4（CIDR）
+- 网络变更会后台激活并等待 SSH 重新连回；如静态 IP 变更后需要改用新地址回连，可设置 `devbox_network_reconnect_host`
 - Oh My Zsh 与常用插件
 - mise 安装、shell 激活与由 Ansible 变量生成的全局 `config.toml`
 - zellij 与自动 attach 配置
@@ -36,6 +39,12 @@ ansible-playbook -i ansible/inventory.yml ansible/init-server.yml
 
 ```bash
 ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml
+```
+
+如果你的控制端使用的是 `ansible-core`，先安装这个仓库依赖的 collection：
+
+```bash
+ansible-galaxy collection install -r ansible/collections/requirements.yml
 ```
 
 ## Inventory 约定

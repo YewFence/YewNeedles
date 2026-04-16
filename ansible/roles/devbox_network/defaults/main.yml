@@ -1,0 +1,32 @@
+---
+devbox_network_manage: "{{ devbox_network_enabled | default(false) }}"
+devbox_network_preset: "{{ devbox_network_profile | default('disabled') }}"
+devbox_network_preset_backend_map:
+  disabled: disabled
+  wsl: wsl
+  pve_vm: nmcli
+devbox_network_backend: >-
+  {{
+    devbox_network_backend_name
+    | default(devbox_network_preset_backend_map.get(devbox_network_preset, 'disabled'))
+  }}
+devbox_network_interface: ""
+devbox_network_gateway: "{{ devbox_network_route_gateway | default('') }}"
+devbox_network_dns_servers: "{{ devbox_network_nameservers | default([]) }}"
+devbox_network_static_ipv4: ""
+devbox_network_supported_backends:
+  - wsl
+  - nmcli
+devbox_network_route_script_path: /usr/local/sbin/yewneedles-route-override.sh
+devbox_network_resolv_conf_path: /etc/resolv.conf
+devbox_network_wsl_conf_path: /etc/wsl.conf
+devbox_network_nm_packages:
+  - network-manager
+devbox_network_nm_service_name: NetworkManager
+devbox_network_nm_conf_dir: /etc/NetworkManager/conf.d
+devbox_network_nm_ifupdown_conf_path: "{{ devbox_network_nm_conf_dir }}/10-yewneedles-ifupdown-managed.conf"
+devbox_network_nm_connection_prefix: yewneedles
+devbox_network_activation_async_timeout: 120
+devbox_network_wait_timeout: 180
+devbox_network_wait_delay: 3
+devbox_network_reconnect_host: ""

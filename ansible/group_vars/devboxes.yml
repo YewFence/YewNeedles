@@ -5,3 +5,10 @@ dev_enable_zellij: true
 dev_enable_docker: false
 dev_enable_tailscale: false
 mise_enable_zellij_tools: "{{ dev_enable_zellij | default(true) }}"
+devbox_network_manage: false
+devbox_network_preset: disabled
+devbox_network_backend: disabled
+devbox_network_interface: ""
+devbox_network_gateway: ""
+devbox_network_dns_servers: []
+devbox_network_static_ipv4: ""

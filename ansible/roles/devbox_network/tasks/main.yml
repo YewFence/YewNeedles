@@ -1,0 +1,28 @@
+---
+- name: Initialize devbox network summary facts
+  ansible.builtin.set_fact:
+    devbox_network_applied_backend: disabled
+    devbox_network_gateway_persistent: false
+    devbox_network_selected_interface: ""
+    devbox_network_selected_connection_name: ""
+    devbox_network_reconnect_target: ""
+    devbox_network_original_ansible_host: "{{ ansible_host | default(inventory_hostname) }}"
+    devbox_network_inventory_update_needed: false
+  changed_when: false
+
+- name: Validate devbox network settings when network overrides are enabled
+  ansible.builtin.assert:
+    that:
+      - devbox_network_backend in devbox_network_supported_backends
+      - devbox_network_gateway | length > 0
+      - devbox_network_dns_servers | length > 0
+      - devbox_network_static_ipv4 | length == 0 or devbox_network_static_ipv4 is regex('^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+/[0-9]+$')
+    fail_msg: >-
+      Define a supported devbox network backend plus non-empty gateway and DNS
+      server values before enabling devbox network management. When setting a
+      static IPv4 override, use CIDR notation such as 192.168.8.10/24.
+  when: devbox_network_manage | bool
+
+- name: Apply the selected devbox network backend
+  ansible.builtin.include_tasks: "backend_{{ devbox_network_backend }}.yml"
+  when: devbox_network_manage | bool

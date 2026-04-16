@@ -1,0 +1,45 @@
+---
+- name: Check whether /etc/resolv.conf is currently a symlink
+  ansible.builtin.stat:
+    path: "{{ devbox_network_resolv_conf_path }}"
+    follow: false
+  register: devbox_network_resolv_conf_stat
+
+- name: Remove the generated resolv.conf symlink before managing the file directly
+  ansible.builtin.file:
+    path: "{{ devbox_network_resolv_conf_path }}"
+    state: absent
+  when: devbox_network_resolv_conf_stat.stat.islnk | default(false)
+
+- name: Render the managed resolv.conf file
+  ansible.builtin.template:
+    src: resolv.conf.j2
+    dest: "{{ devbox_network_resolv_conf_path }}"
+    mode: "0644"
+
+- name: Configure WSL to stop regenerating resolv.conf
+  ansible.builtin.ini_file:
+    path: "{{ devbox_network_wsl_conf_path }}"
+    section: network
+    option: generateResolvConf
+    value: "false"
+    mode: "0644"
+
+- name: Stage the gateway override helper for later WSL testing
+  ansible.builtin.template:
+    src: route-override.sh.j2
+    dest: "{{ devbox_network_route_script_path }}"
+    mode: "0755"
+
+- name: Record WSL as the applied devbox network backend
+  ansible.builtin.set_fact:
+    devbox_network_applied_backend: wsl
+    devbox_network_gateway_persistent: false
+  changed_when: false
+
+- name: Explain that the WSL gateway override stays staged only
+  ansible.builtin.debug:
+    msg: >-
+      WSL now pins DNS to {{ devbox_network_dns_servers | join(', ') }} and
+      stages the gateway override script at {{ devbox_network_route_script_path
+      }}, but it does not switch the live default route automatically yet.
