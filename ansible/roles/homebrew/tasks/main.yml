@@ -28,14 +28,24 @@
   changed_when: false
 
 - name: Install Homebrew for the managed user
-  ansible.builtin.shell: /bin/bash -c "$(curl -fsSL {{ homebrew_install_script_url }})"
-  args:
-    executable: /bin/bash
+  ansible.builtin.get_url:
+    url: "{{ homebrew_install_script_url }}"
+    dest: /tmp/homebrew-install.sh
+    mode: "0755"
+  when: homebrew_brew_bin == ''
+
+- name: Run the Homebrew installer for the managed user
+  ansible.builtin.command:
+    argv:
+      - /bin/bash
+      - /tmp/homebrew-install.sh
   environment:
     CI: "1"
     NONINTERACTIVE: "1"
     HOME: /home/{{ username }}
+  become: true
   become_user: "{{ username }}"
+  changed_when: true
   when: homebrew_brew_bin == ''
 
 - name: Probe Homebrew install locations again after installation
@@ -81,10 +91,16 @@
   loop: "{{ homebrew_shell_rc_files }}"
 
 - name: Check whether requested Homebrew packages are already installed
-  ansible.builtin.command: "{{ homebrew_brew_bin }} list --versions {{ item }}"
+  ansible.builtin.command:
+    argv:
+      - "{{ homebrew_brew_bin }}"
+      - list
+      - --versions
+      - "{{ item }}"
   environment:
     HOME: /home/{{ username }}
     HOMEBREW_NO_ENV_HINTS: "1"
+  become: true
   become_user: "{{ username }}"
   register: homebrew_package_status
   changed_when: false
@@ -92,10 +108,16 @@
   loop: "{{ homebrew_packages }}"
 
 - name: Install missing Homebrew packages
-  ansible.builtin.command: "{{ homebrew_brew_bin }} install {{ item.item }}"
+  ansible.builtin.command:
+    argv:
+      - "{{ homebrew_brew_bin }}"
+      - install
+      - "{{ item.item }}"
   environment:
     HOME: /home/{{ username }}
     HOMEBREW_NO_ENV_HINTS: "1"
+  become: true
   become_user: "{{ username }}"
+  changed_when: true
   loop: "{{ homebrew_package_status.results }}"
   when: item.rc != 0

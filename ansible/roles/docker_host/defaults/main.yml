@@ -1,9 +1,13 @@
 ---
-docker_install_script_url: https://get.docker.com
-docker_manage_user_group: true
-
-docker_daemon_config:
-  log-driver: json-file
-  log-opts:
-    max-size: 50m
-    max-file: "3"
+docker_host_install_script_url: "{{ docker_install_script_url | default('https://get.docker.com') }}"
+docker_host_manage_user_group: "{{ docker_manage_user_group | default(true) }}"
+docker_host_daemon_config: >-
+  {{
+    docker_daemon_config | default({
+      'log-driver': 'json-file',
+      'log-opts': {
+        'max-size': '50m',
+        'max-file': '3'
+      }
+    })
+  }}

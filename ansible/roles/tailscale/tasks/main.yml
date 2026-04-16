@@ -5,10 +5,20 @@
     path: /usr/bin/tailscale
   register: tailscale_binary
 
+- name: Download the Tailscale installer
+  ansible.builtin.get_url:
+    url: "{{ tailscale_install_script_url }}"
+    dest: /tmp/tailscale-install.sh
+    mode: "0755"
+  when: not tailscale_binary.stat.exists
+
 - name: Install Tailscale via the official script
-  ansible.builtin.shell: curl -fsSL {{ tailscale_install_script_url }} | sh
+  ansible.builtin.command:
+    argv:
+      - /bin/sh
+      - /tmp/tailscale-install.sh
   args:
-    executable: /bin/bash
+    creates: /usr/bin/tailscale
   when: not tailscale_binary.stat.exists
 
 - name: Ensure tailscaled is enabled and running

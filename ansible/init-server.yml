@@ -1,4 +1,41 @@
 ---
+- name: Confirm server initialization plan
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Preview host settings before any remote changes
+      ansible.builtin.debug:
+        msg: |
+          About to initialize these hosts:
+          {% for host in groups['servers'] | default([]) %}
+          - {{ host }}
+            ansible_host: {{ hostvars[host].ansible_host | default(host) }}
+            ansible_user: {{ hostvars[host].ansible_user | default('root') }}
+            ansible_port: {{ hostvars[host].ansible_port | default('UNSET') }}
+            username: {{ hostvars[host].username | default(username | default('UNSET')) }}
+            sshid_username: {{ hostvars[host].sshid_username | default(hostvars[host].username | default(username | default('UNSET'))) }}
+            enable_bbr: {{ hostvars[host].enable_bbr | default(true) }}
+            enable_swap: {{ hostvars[host].enable_swap | default(true) }}
+            swap_size: {{ hostvars[host].swap_size | default('UNSET') }}
+            enable_ssh_hardening: {{ hostvars[host].enable_ssh_hardening | default(true) }}
+            ssh_disable_password_auth: {{ hostvars[host].ssh_disable_password_auth | default(false) }}
+            enable_ufw: {{ hostvars[host].enable_ufw | default(true) }}
+            enable_docker: {{ hostvars[host].enable_docker | default(true) }}
+            enable_tailscale: {{ hostvars[host].enable_tailscale | default(true) }}
+          {% endfor %}
+
+    - name: Require a final yes before continuing
+      ansible.builtin.pause:
+        prompt: Type "yes" to continue. Any other input will cancel the run.
+      register: server_init_confirmation
+
+    - name: Abort when the operator does not confirm
+      ansible.builtin.fail:
+        msg: Cancelled before making changes.
+      when: server_init_confirmation.user_input | lower != 'yes'
+
 - name: Initialize Debian or Ubuntu server hosts
   hosts: servers
   serial: 1
@@ -22,45 +59,6 @@
         fail_msg: >-
           Missing or invalid vars. Define username, ansible_port, and swap_size
           when swap is enabled before running this playbook.
-
-    # Show a single summary of the host values and enabled roles before anything runs.
-    - name: Preview host settings before any remote changes
-      ansible.builtin.debug:
-        msg: |
-          About to initialize these hosts:
-          {% for host in ansible_play_hosts_all %}
-          - {{ host }}
-            ansible_host: {{ hostvars[host].ansible_host | default(host) }}
-            ansible_user: {{ hostvars[host].ansible_user | default('root') }}
-            ansible_port: {{ hostvars[host].ansible_port | default('UNSET') }}
-            username: {{ hostvars[host].username | default('UNSET') }}
-            sshid_username: {{ hostvars[host].sshid_username | default(hostvars[host].username | default('UNSET')) }}
-            enable_bbr: {{ hostvars[host].enable_bbr | default(true) }}
-            enable_swap: {{ hostvars[host].enable_swap | default(true) }}
-            swap_size: {{ hostvars[host].swap_size | default('UNSET') }}
-            enable_ssh_hardening: {{ hostvars[host].enable_ssh_hardening | default(true) }}
-            ssh_disable_password_auth: {{ hostvars[host].ssh_disable_password_auth | default(false) }}
-            enable_ufw: {{ hostvars[host].enable_ufw | default(true) }}
-            enable_docker: {{ hostvars[host].enable_docker | default(true) }}
-            enable_tailscale: {{ hostvars[host].enable_tailscale | default(true) }}
-          {% endfor %}
-      run_once: true
-      delegate_to: localhost
-
-    # Preserve the current workflow: ask once, then either continue or abort.
-    - name: Require a final yes before continuing
-      ansible.builtin.pause:
-        prompt: Type "yes" to continue. Any other input will cancel the run.
-      register: init_confirmation
-      run_once: true
-      delegate_to: localhost
-
-    - name: Abort when the operator does not confirm
-      ansible.builtin.fail:
-        msg: Cancelled before making changes.
-      when: init_confirmation.user_input | lower != 'yes'
-      run_once: true
-      delegate_to: localhost
 
   tasks:
     # `common` is intentionally small so it can be reused by future WSL/LXC/dev playbooks.

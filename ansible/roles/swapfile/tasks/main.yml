@@ -9,7 +9,7 @@
   when: swapfile_active_swap.stdout | trim == ''
   block:
     - name: Allocate the swapfile
-      ansible.builtin.command: fallocate -l {{ swap_size }} {{ swapfile_path }}
+      ansible.builtin.command: fallocate -l {{ swapfile_size }} {{ swapfile_path }}
       args:
         creates: "{{ swapfile_path }}"
 
@@ -20,11 +20,26 @@
         owner: root
         group: root
 
+    - name: Check the current swapfile metadata
+      ansible.builtin.stat:
+        path: "{{ swapfile_path }}"
+      register: swapfile_file
+
+    - name: Check whether the swapfile is already formatted as swap
+      ansible.builtin.command: blkid -p -o value -s TYPE {{ swapfile_path }}
+      register: swapfile_signature
+      changed_when: false
+      failed_when: false
+      when: swapfile_file.stat.exists
+
     - name: Format the swapfile
       ansible.builtin.command: mkswap {{ swapfile_path }}
+      changed_when: true
+      when: swapfile_signature.stdout | default('') | trim != 'swap'
 
     - name: Enable the swapfile now
       ansible.builtin.command: swapon {{ swapfile_path }}
+      changed_when: true
 
     - name: Persist the swapfile in fstab
       ansible.builtin.lineinfile:

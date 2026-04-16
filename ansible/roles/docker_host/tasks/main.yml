@@ -5,10 +5,20 @@
     path: /usr/bin/docker
   register: docker_host_binary
 
+- name: Download the Docker convenience script
+  ansible.builtin.get_url:
+    url: "{{ docker_host_install_script_url }}"
+    dest: /tmp/get-docker.sh
+    mode: "0755"
+  when: not docker_host_binary.stat.exists
+
 - name: Install Docker via the official convenience script
-  ansible.builtin.shell: curl -fsSL {{ docker_install_script_url }} | sh
+  ansible.builtin.command:
+    argv:
+      - /bin/sh
+      - /tmp/get-docker.sh
   args:
-    executable: /bin/bash
+    creates: /usr/bin/docker
   when: not docker_host_binary.stat.exists
 
 - name: Ensure the docker group exists
@@ -23,7 +33,7 @@
     groups:
       - docker
     append: true
-  when: docker_manage_user_group | bool
+  when: docker_host_manage_user_group | bool
 
 - name: Ensure Docker service is enabled and running
   ansible.builtin.service:
@@ -41,5 +51,5 @@
   ansible.builtin.copy:
     dest: /etc/docker/daemon.json
     mode: "0644"
-    content: "{{ docker_daemon_config | to_nice_json }}\n"
+    content: "{{ docker_host_daemon_config | to_nice_json }}\n"
   notify: Restart docker

@@ -1,4 +1,37 @@
 ---
+- name: Confirm development initialization plan
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Preview host settings before any local or remote changes
+      ansible.builtin.debug:
+        msg: |
+          About to initialize these development hosts:
+          {% for host in groups['devboxes'] | default([]) %}
+          - {{ host }}
+            ansible_connection: {{ hostvars[host].ansible_connection | default('ssh') }}
+            ansible_host: {{ hostvars[host].ansible_host | default(host) }}
+            ansible_user: {{ hostvars[host].ansible_user | default(username | default('UNSET')) }}
+            username: {{ hostvars[host].username | default(username | default('UNSET')) }}
+            dev_enable_homebrew: {{ hostvars[host].dev_enable_homebrew | default(true) }}
+            dev_enable_oh_my_zsh: {{ hostvars[host].dev_enable_oh_my_zsh | default(true) }}
+            dev_enable_zellij: {{ hostvars[host].dev_enable_zellij | default(true) }}
+            dev_enable_docker: {{ hostvars[host].dev_enable_docker | default(false) }}
+            dev_enable_tailscale: {{ hostvars[host].dev_enable_tailscale | default(false) }}
+          {% endfor %}
+
+    - name: Require a final yes before continuing
+      ansible.builtin.pause:
+        prompt: Type "yes" to continue. Any other input will cancel the run.
+      register: devbox_init_confirmation
+
+    - name: Abort when the operator does not confirm
+      ansible.builtin.fail:
+        msg: Cancelled before making changes.
+      when: devbox_init_confirmation.user_input | lower != 'yes'
+
 - name: Initialize Debian or Ubuntu development hosts
   hosts: devboxes
   serial: 1
@@ -18,39 +51,6 @@
           - username | length > 0
           - username != 'root'
         fail_msg: Define a non-root username before running the devbox playbook.
-
-    - name: Preview host settings before any local or remote changes
-      ansible.builtin.debug:
-        msg: |
-          About to initialize these development hosts:
-          {% for host in ansible_play_hosts_all %}
-          - {{ host }}
-            ansible_connection: {{ hostvars[host].ansible_connection | default('ssh') }}
-            ansible_host: {{ hostvars[host].ansible_host | default(host) }}
-            ansible_user: {{ hostvars[host].ansible_user | default(username) }}
-            username: {{ hostvars[host].username | default('UNSET') }}
-            dev_enable_homebrew: {{ hostvars[host].dev_enable_homebrew | default(true) }}
-            dev_enable_oh_my_zsh: {{ hostvars[host].dev_enable_oh_my_zsh | default(true) }}
-            dev_enable_zellij: {{ hostvars[host].dev_enable_zellij | default(true) }}
-            dev_enable_docker: {{ hostvars[host].dev_enable_docker | default(false) }}
-            dev_enable_tailscale: {{ hostvars[host].dev_enable_tailscale | default(false) }}
-          {% endfor %}
-      run_once: true
-      delegate_to: localhost
-
-    - name: Require a final yes before continuing
-      ansible.builtin.pause:
-        prompt: Type "yes" to continue. Any other input will cancel the run.
-      register: init_confirmation
-      run_once: true
-      delegate_to: localhost
-
-    - name: Abort when the operator does not confirm
-      ansible.builtin.fail:
-        msg: Cancelled before making changes.
-      when: init_confirmation.user_input | lower != 'yes'
-      run_once: true
-      delegate_to: localhost
 
   tasks:
     - name: Apply the shared baseline used by both servers and devboxes
