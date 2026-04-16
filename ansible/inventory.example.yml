@@ -339,6 +339,12 @@ all:
               # mise_tools_extra:
               #   node: "22"
 
+              # Optional: read this host's sudo password from a controller-side
+              # environment variable. The first variable names the env var;
+              # the second maps it into the built-in Ansible host var.
+              # become_password_env_var: SUDO_PASS_WSL
+              # ansible_become_password: "{{ lookup('ansible.builtin.env', become_password_env_var) }}"
+
         pve_vms:
           hosts:
             example_pve_vm:
@@ -354,6 +360,11 @@ all:
               # Optional: dedicated SSH key for this VM.
               # ansible_ssh_private_key_file: ~/.ssh/example_pve_vm_ed25519
 
+              # Optional: read this host's sudo password from a controller-side
+              # environment variable.
+              # become_password_env_var: SUDO_PASS_PVE_VM
+              # ansible_become_password: "{{ lookup('ansible.builtin.env', become_password_env_var) }}"
+
             example_remote_dev_vm:
               # Publicly reachable dev VM or a VM reached through a bastion/VPN.
               ansible_host: 203.0.113.20
@@ -364,6 +375,10 @@ all:
               # from the rest of the `devboxes` group.
               # dev_enable_tailscale: true
               # zellij_session_name: remote
+              # Optional: read this host's sudo password from a controller-side
+              # environment variable.
+              # become_password_env_var: SUDO_PASS_DEV_VM
+              # ansible_become_password: "{{ lookup('ansible.builtin.env', become_password_env_var) }}"
 
         docker_enabled:
           hosts:

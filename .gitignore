@@ -27,3 +27,6 @@ ansible.log
 .vault_pass.txt
 .vault-password
 .vault_password
+
+# Other Local conf
+mise.local.toml
