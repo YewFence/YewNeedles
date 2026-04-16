@@ -1,22 +1,14 @@
 # Copy this file to inventory.yml and replace the sample values.
-# Use `servers` for VPS / production hosts and `devboxes` for PVE VMs or WSL.
-# Only disable SSH password auth after you have verified key login in a second session.
+# Defaults live in ansible/group_vars/*.yml, so this file mostly describes host
+# membership and the few per-host connection details that actually vary.
+# Use platform groups such as `wsl` and `pve_vms`, then capability groups such
+# as `docker_enabled` and `tailscale_enabled` to avoid combinatorial group sprawl.
 all:
+  vars:
+    username: yewfence
+
   children:
     servers:
-      vars:
-        username: yewfence
-        sshid_username: yewfence
-        enable_ssh_hardening: true
-        ssh_disable_password_auth: false
-        ssh_disable_password_auth_confirmed: false
-        enable_bbr: true
-        enable_swap: true
-        swap_size: 2G
-        enable_ufw: true
-        enable_docker: true
-        enable_tailscale: true
-
       hosts:
         example_vps:
           ansible_host: 203.0.113.10
@@ -24,18 +16,29 @@ all:
           ansible_port: 22
 
     devboxes:
-      vars:
-        username: yewfence
-        dev_enable_homebrew: true
-        dev_enable_oh_my_zsh: true
-        dev_enable_zellij: true
+      children:
+        wsl:
+          hosts:
+            example_wsl:
+              ansible_connection: local
+              ansible_user: yewfence
 
-      hosts:
-        example_pve_vm:
-          ansible_host: 203.0.113.20
-          ansible_user: yewfence
-          ansible_port: 22
+        pve_vms:
+          hosts:
+            example_pve_vm:
+              ansible_host: 10.0.0.21
+              ansible_user: yewfence
+              ansible_port: 22
 
-        example_wsl:
-          ansible_connection: local
-          ansible_user: yewfence
+            example_remote_dev_vm:
+              ansible_host: 203.0.113.20
+              ansible_user: yewfence
+              ansible_port: 22
+
+        docker_enabled:
+          hosts:
+            example_pve_vm:
+
+        tailscale_enabled:
+          hosts:
+            example_remote_dev_vm:

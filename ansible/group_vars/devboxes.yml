@@ -1,0 +1,6 @@
+---
+dev_enable_homebrew: true
+dev_enable_oh_my_zsh: true
+dev_enable_zellij: true
+dev_enable_docker: false
+dev_enable_tailscale: false

@@ -1,0 +1,10 @@
+---
+enable_ssh_hardening: true
+ssh_disable_password_auth: false
+ssh_disable_password_auth_confirmed: false
+enable_bbr: true
+enable_swap: true
+swap_size: 2G
+enable_ufw: true
+enable_docker: true
+enable_tailscale: true

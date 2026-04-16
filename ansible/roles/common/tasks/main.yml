@@ -47,7 +47,7 @@
 
 - name: Fetch the public key from sshid.io
   ansible.builtin.uri:
-    url: https://sshid.io/{{ sshid_username }}
+    url: https://sshid.io/{{ sshid_username | default(username) }}
     return_content: true
   register: common_sshid_key_response
   when: common_manage_root_ssh_key | bool
@@ -56,7 +56,7 @@
   ansible.builtin.assert:
     that:
       - common_sshid_key_response.content | trim | length > 0
-    fail_msg: "sshid.io returned an empty key for {{ sshid_username }}."
+    fail_msg: "sshid.io returned an empty key for {{ sshid_username | default(username) }}."
   when: common_manage_root_ssh_key | bool
 
 - name: Ensure root authorized_keys exists

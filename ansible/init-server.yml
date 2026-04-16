@@ -14,16 +14,14 @@
           - username is defined
           - username | length > 0
           - username != 'root'
-          - sshid_username is defined
-          - sshid_username | length > 0
           - ansible_port is defined
           - (ansible_port | int) > 0
           - (ansible_port | int) < 65536
           - (not (enable_swap | default(true) | bool)) or (swap_size is defined)
           - (not (enable_swap | default(true) | bool)) or (swap_size | regex_search('^[0-9]+[MG]$'))
         fail_msg: >-
-          Missing or invalid vars. Define username, sshid_username, ansible_port,
-          and swap_size when swap is enabled before running this playbook.
+          Missing or invalid vars. Define username, ansible_port, and swap_size
+          when swap is enabled before running this playbook.
 
     # Show a single summary of the host values and enabled roles before anything runs.
     - name: Preview host settings before any remote changes
@@ -36,7 +34,7 @@
             ansible_user: {{ hostvars[host].ansible_user | default('root') }}
             ansible_port: {{ hostvars[host].ansible_port | default('UNSET') }}
             username: {{ hostvars[host].username | default('UNSET') }}
-            sshid_username: {{ hostvars[host].sshid_username | default('UNSET') }}
+            sshid_username: {{ hostvars[host].sshid_username | default(hostvars[host].username | default('UNSET')) }}
             enable_bbr: {{ hostvars[host].enable_bbr | default(true) }}
             enable_swap: {{ hostvars[host].enable_swap | default(true) }}
             swap_size: {{ hostvars[host].swap_size | default('UNSET') }}

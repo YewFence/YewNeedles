@@ -32,6 +32,8 @@
             dev_enable_homebrew: {{ hostvars[host].dev_enable_homebrew | default(true) }}
             dev_enable_oh_my_zsh: {{ hostvars[host].dev_enable_oh_my_zsh | default(true) }}
             dev_enable_zellij: {{ hostvars[host].dev_enable_zellij | default(true) }}
+            dev_enable_docker: {{ hostvars[host].dev_enable_docker | default(false) }}
+            dev_enable_tailscale: {{ hostvars[host].dev_enable_tailscale | default(false) }}
           {% endfor %}
       run_once: true
       delegate_to: localhost
@@ -70,6 +72,16 @@
         name: zellij
       when: dev_enable_zellij | default(true) | bool
 
+    - name: Install Docker on development hosts that need container workloads
+      ansible.builtin.include_role:
+        name: docker_host
+      when: dev_enable_docker | default(false) | bool
+
+    - name: Install and configure Tailscale on development hosts that need overlay access
+      ansible.builtin.include_role:
+        name: tailscale
+      when: dev_enable_tailscale | default(false) | bool
+
   post_tasks:
     - name: Read Homebrew version for the summary
       ansible.builtin.command: "{{ homebrew_brew_bin }} --version"
@@ -80,6 +92,12 @@
         - homebrew_brew_bin is defined
         - homebrew_brew_bin | length > 0
 
+    - name: Read Docker version for the summary
+      ansible.builtin.command: docker -v
+      register: docker_version
+      changed_when: false
+      when: dev_enable_docker | default(false) | bool
+
     - name: Print the final summary
       ansible.builtin.debug:
         msg: |
@@ -89,8 +107,14 @@
             homebrew: {{ dev_enable_homebrew | default(true) | bool }}
             oh_my_zsh: {{ dev_enable_oh_my_zsh | default(true) | bool }}
             zellij: {{ dev_enable_zellij | default(true) | bool }}
+            docker_host: {{ dev_enable_docker | default(false) | bool }}
+            tailscale: {{ dev_enable_tailscale | default(false) | bool }}
           {% if dev_enable_homebrew | default(true) | bool and homebrew_version is defined %}
 
           Homebrew version:
           {{ homebrew_version.stdout_lines | join('\n') }}
+          {% endif %}
+          {% if dev_enable_docker | default(false) | bool and docker_version is defined %}
+
+          Docker version: {{ docker_version.stdout }}
           {% endif %}
