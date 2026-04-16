@@ -1,0 +1,29 @@
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Local Python / Ansible tooling environments
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Ansible local state
+.ansible/
+ansible/inventory.yml
+ansible.log
+*.retry
+
+# Local vault password files
+.vault_pass
+.vault_pass.txt
+.vault-password
+.vault_password
