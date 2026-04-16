@@ -1,3 +1,10 @@
 [tools]
 ansible = { version = "latest", pipx_args = "--include-deps", uvx = "false" }
 "pipx:ansible-lint" = "latest"
+
+[env]
+ANSIBLE_COLLECTIONS_SCAN_SYS_PATH = "true"
+ANSIBLE_LOCAL_TEMP = "{{config_root}}/.ansible/tmp"
+
+[tasks.play-dev]
+run = "ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml"
