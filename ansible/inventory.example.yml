@@ -1,44 +1,379 @@
-# Copy this file to inventory.yml and replace the sample values.
-# Defaults live in ansible/group_vars/*.yml, so this file mostly describes host
-# membership and the few per-host connection details that actually vary.
-# Use platform groups such as `wsl` and `pve_vms`, then capability groups such
-# as `docker_enabled` and `tailscale_enabled` to avoid combinatorial group sprawl.
+# Copy this file to `inventory.yml` and replace the sample values.
+# Defaults already live in `ansible/group_vars/*.yml`; this example shows how
+# to override them from inventory when a machine or environment needs something
+# different. Keep platform groups (`wsl`, `pve_vms`) separate from capability
+# groups (`docker_enabled`, `tailscale_enabled`) so host intent stays obvious.
 all:
   vars:
+    # Managed non-root account created or reused on target hosts. Both
+    # `init-server.yml` and `init-devbox.yml` require this to be set.
     username: yewfence
+
+    # Optional: sshid.io username used by `init-server.yml` when fetching SSH
+    # public keys. Leave unset when it matches `username`, or override per host.
+    # sshid_username: yewfence
+
+    # Optional: upgrade installed apt packages during the common baseline role.
+    # Set to `false` when you want package installation without a dist-upgrade.
+    # common_upgrade_system: true
+
+    # Optional: baseline packages installed on both servers and devboxes.
+    # Override only when this inventory wants a different shared package set.
+    # common_packages:
+    #   - ca-certificates
+    #   - curl
+    #   - wget
+    #   - git
+    #   - vim
+    #   - unzip
+    #   - tar
+    #   - htop
+
+    # Optional: control whether the common role should manage the non-root user.
+    # Leave enabled for normal bootstrap; disable only when the account already
+    # exists and user management happens elsewhere.
+    # common_manage_user: true
+
+    # Optional: login shell assigned when the common role creates `username`.
+    # `oh_my_zsh` later switches the shell to zsh on devboxes when enabled.
+    # common_user_shell: /bin/bash
+
+    # Optional: supplementary groups assigned to the managed user account.
+    # `docker_host` appends the `docker` group separately when enabled.
+    # common_user_groups:
+    #   - sudo
+
+    # Optional: manage `/root/.vimrc` and `/home/{{ username }}/.vimrc`.
+    # Disable when you do not want the repo to own editor defaults.
+    # common_manage_vimrc: true
+
+    # Optional: Vim configuration content written by the common role.
+    # Override when you want a different baseline editor behavior.
+    # common_vimrc_content: |
+    #   set backupcopy=yes
+    #   syntax on
+    #   set number
 
   children:
     servers:
+      vars:
+        # Optional: run the SSH auth hardening role for server hosts.
+        # Keep this enabled unless SSH is managed outside this repository.
+        # enable_ssh_hardening: true
+
+        # Optional: disable SSH password login. Follow the staged rollout in
+        # `AGENTS.md`: first confirm key login from a second session, then set
+        # both this variable and `ssh_disable_password_auth_confirmed` to true.
+        # ssh_disable_password_auth: false
+
+        # Required acknowledgement for disabling SSH password login.
+        # This guards against locking yourself out during first bootstrap.
+        # ssh_disable_password_auth_confirmed: false
+
+        # Optional: enable BBR kernel tuning on public servers.
+        # enable_bbr: true
+
+        # Optional: manage a swapfile on server hosts.
+        # enable_swap: true
+
+        # Swap size used when `enable_swap: true`. The playbook currently
+        # accepts values like `1G`, `2G`, `8G`, or `512M`.
+        # swap_size: 2G
+
+        # Optional: enable and manage UFW on server hosts.
+        # enable_ufw: true
+
+        # Optional: install Docker on server hosts.
+        # enable_docker: true
+
+        # Optional: install Tailscale on server hosts.
+        # enable_tailscale: true
+
+        # Optional: keep SSH public key authentication enabled in the generated
+        # SSH drop-in. Set to `false` only if another mechanism manages auth.
+        # ssh_pubkey_authentication: true
+
+        # Optional: require an existing non-empty `authorized_keys` file before
+        # password login can be disabled. Leave enabled for safer rollouts.
+        # ssh_require_existing_authorized_keys: true
+
+        # Optional: ensure `/etc/ssh/sshd_config` includes the drop-in
+        # directory. Leave enabled on standard Debian or Ubuntu hosts.
+        # ssh_manage_include_directive: true
+
+        # Optional: directory where SSH auth hardening writes its drop-in file.
+        # ssh_dropin_dir: /etc/ssh/sshd_config.d
+
+        # Optional: exact SSH drop-in path managed by the hardening role.
+        # ssh_dropin_file: /etc/ssh/sshd_config.d/99-yewneedles-auth.conf
+
+        # Optional: manage `/root/.ssh/authorized_keys` from the combined
+        # sshid.io and repository key set during server bootstrap.
+        # common_manage_root_ssh_key: true
+
+        # Optional: copy the same authorized_keys payload to `username`.
+        # Disable when the managed user should maintain its own SSH keys.
+        # common_copy_root_authorized_keys: true
+
+        # Optional: generate a one-time sudo password when the user account is
+        # created for the first time. Disable in key-only environments.
+        # common_create_temp_password: true
+
+        # Optional: allow TCP/80 through UFW in addition to SSH.
+        # ufw_allow_http: true
+
+        # Optional: allow TCP/443 through UFW in addition to SSH.
+        # ufw_allow_https: true
+
+        # Optional: extra `ufw allow ...` rules appended after SSH, HTTP and
+        # HTTPS. Each entry is passed as a single rule string.
+        # ufw_extra_rules:
+        #   - 8080/tcp
+        #   - 60000:61000/udp
+
+        # Optional: override the Docker installer URL when you use an internal
+        # mirror or need to pin a different source.
+        # docker_install_script_url: https://get.docker.com
+
+        # Optional: add `username` to the `docker` Unix group after install.
+        # docker_manage_user_group: true
+
+        # Optional: content written to `/etc/docker/daemon.json`.
+        # Override this to customize logging, registry mirrors, storage, etc.
+        # docker_daemon_config:
+        #   log-driver: json-file
+        #   log-opts:
+        #     max-size: 50m
+        #     max-file: "3"
+
+        # Optional: override the Tailscale installer URL when mirroring or
+        # testing different packaging sources.
+        # tailscale_install_script_url: https://tailscale.com/install.sh
+
+        # Optional: run `tailscale set --operator={{ username }}` after install.
+        # Disable when operator assignment should be managed manually.
+        # tailscale_set_operator: true
+
+        # Optional: exact swapfile path created by the swap role.
+        # swapfile_path: /swapfile
+
+        # Optional: kernel swappiness value written by the swap role.
+        # swapfile_swappiness: 10
+
+        # Optional: sysctl drop-in path used by the swap role.
+        # swapfile_sysctl_file: /etc/sysctl.d/99-swapfile.conf
+
+        # Optional: sysctl drop-in path used by the BBR role.
+        # bbr_sysctl_file: /etc/sysctl.d/99-bbr.conf
+
       hosts:
         example_vps:
+          # Public IP or DNS name of the server.
           ansible_host: 203.0.113.10
+
+          # Bootstrap normally connects as `root` first so the playbook can
+          # create the managed user and install the expected SSH keys.
           ansible_user: root
+
+          # Server bootstrap requires an explicit SSH port in inventory even
+          # when the port is still the default 22.
           ansible_port: 22
 
+          # Optional: dedicated SSH private key for this server.
+          # ansible_ssh_private_key_file: ~/.ssh/example_vps_ed25519
+
+          # Optional: per-host managed username when this server should not use
+          # `all.vars.username`.
+          # username: deploy
+
+          # Optional: sshid.io lookup name when it differs from `username`.
+          # sshid_username: deploy
+
+          # Optional: server-specific firewall exceptions beyond SSH/HTTP/HTTPS.
+          # ufw_extra_rules:
+          #   - 8443/tcp
+
+        example_vps_hardened:
+          # A second example showing per-host overrides on top of group defaults.
+          ansible_host: 203.0.113.11
+          ansible_user: root
+          ansible_port: 2222
+
+          # Only enable these after you have confirmed SSH key login works from
+          # a separate session, otherwise you risk locking yourself out.
+          # ssh_disable_password_auth: true
+          # ssh_disable_password_auth_confirmed: true
+
+          # Example: disable services that this host does not need.
+          # enable_docker: false
+          # enable_tailscale: false
+
+          # Example: custom Docker daemon configuration for this one host.
+          # docker_daemon_config:
+          #   log-driver: json-file
+          #   log-opts:
+          #     max-size: 20m
+          #     max-file: "5"
+
     devboxes:
+      vars:
+        # Optional: install and configure Oh My Zsh for devboxes.
+        # dev_enable_oh_my_zsh: true
+
+        # Optional: install mise and render the managed global tool config.
+        # dev_enable_mise: true
+
+        # Optional: configure zellij autostart for interactive shells.
+        # dev_enable_zellij: true
+
+        # Optional: install Docker on development hosts.
+        # dev_enable_docker: false
+
+        # Optional: install Tailscale on development hosts.
+        # dev_enable_tailscale: false
+
+        # Optional: when `true`, also add zellij-related tools to the rendered
+        # mise config. The repo default already derives this from zellij.
+        # mise_enable_zellij_tools: true
+
+        # Optional: override the mise installer URL when using a mirror.
+        # mise_install_script_url: https://mise.run
+
+        # Optional: temporary path used to store the downloaded mise installer.
+        # mise_install_script_dest: /tmp/mise-install.sh
+
+        # Optional: final location of the managed mise binary.
+        # mise_binary_path: /home/{{ username }}/.local/bin/mise
+
+        # Optional: directory where the managed mise config is written.
+        # mise_config_dir: /home/{{ username }}/.config/mise
+
+        # Optional: exact TOML file path rendered by the mise role.
+        # mise_config_file: /home/{{ username }}/.config/mise/config.toml
+
+        # Optional: shell rc files that receive the `mise activate` block.
+        # mise_shell_activation_targets:
+        #   - path: /home/{{ username }}/.bashrc
+        #     shell: bash
+        #   - path: /home/{{ username }}/.zshrc
+        #     shell: zsh
+
+        # Optional: extra mise-managed tools merged into the repo defaults.
+        # Use this for language runtimes or CLI tools that not every devbox needs.
+        # mise_tools_extra:
+        #   node: "22"
+        #   python: "3.12"
+        #   go: "1.24"
+
+        # Optional: override the Oh My Zsh installer URL when mirroring.
+        # oh_my_zsh_install_script_url: https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
+
+        # Optional: package list installed before Oh My Zsh setup.
+        # oh_my_zsh_packages:
+        #   - zsh
+
+        # Optional: Oh My Zsh theme written to `/home/{{ username }}/.zshrc`.
+        # oh_my_zsh_theme: robbyrussell
+
+        # Optional: plugin list written to `/home/{{ username }}/.zshrc`.
+        # oh_my_zsh_plugins:
+        #   - git
+        #   - zsh-autosuggestions
+        #   - zsh-syntax-highlighting
+
+        # Optional: custom plugin repositories cloned into
+        # `~/.oh-my-zsh/custom/plugins`.
+        # oh_my_zsh_custom_plugins:
+        #   - name: zsh-autosuggestions
+        #     repo: https://github.com/zsh-users/zsh-autosuggestions
+        #   - name: zsh-syntax-highlighting
+        #     repo: https://github.com/zsh-users/zsh-syntax-highlighting.git
+
+        # Optional: session name used by the zellij autostart block.
+        # zellij_session_name: main
+
+        # Optional: shell rc files that receive the zellij autostart snippet.
+        # zellij_shell_rc_files:
+        #   - /home/{{ username }}/.bashrc
+        #   - /home/{{ username }}/.zshrc
+
+        # Optional: exact autostart block appended by the zellij role.
+        # Override when you want different shell startup behavior.
+        # zellij_autostart_block: |
+        #   if [[ $- == *i* ]]; then
+        #     if command -v zellij >/dev/null 2>&1 && [[ -z "${ZELLIJ:-}" ]]; then
+        #       zellij attach --create main
+        #     fi
+        #   fi
+
+        # Optional: add `username` to the `docker` group on devboxes too.
+        # docker_manage_user_group: true
+
+        # Optional: customize `/etc/docker/daemon.json` on devboxes that run Docker.
+        # docker_daemon_config:
+        #   log-driver: json-file
+        #   log-opts:
+        #     max-size: 50m
+        #     max-file: "3"
+
+        # Optional: run `tailscale set --operator={{ username }}` on devboxes
+        # after Tailscale is installed.
+        # tailscale_set_operator: true
+
       children:
         wsl:
           hosts:
             example_wsl:
+              # WSL usually runs on the same machine that executes Ansible, so
+              # `local` is the simplest connection mode.
               ansible_connection: local
+
+              # Local account used when the playbook targets this WSL instance.
               ansible_user: yewfence
+
+              # Optional: per-host username override when this WSL user differs
+              # from `all.vars.username`.
+              # username: yewfence
+
+              # Optional: WSL-specific tool additions rendered into mise config.
+              # mise_tools_extra:
+              #   node: "22"
 
         pve_vms:
           hosts:
             example_pve_vm:
+              # Private IP or DNS name of the Proxmox VM.
               ansible_host: 10.0.0.21
+
+              # Existing login user used for SSH before privilege escalation.
               ansible_user: yewfence
+
+              # SSH port for this dev VM.
               ansible_port: 22
 
+              # Optional: dedicated SSH key for this VM.
+              # ansible_ssh_private_key_file: ~/.ssh/example_pve_vm_ed25519
+
             example_remote_dev_vm:
+              # Publicly reachable dev VM or a VM reached through a bastion/VPN.
               ansible_host: 203.0.113.20
               ansible_user: yewfence
               ansible_port: 22
 
+              # Optional: devbox-specific overrides when this machine differs
+              # from the rest of the `devboxes` group.
+              # dev_enable_tailscale: true
+              # zellij_session_name: remote
+
         docker_enabled:
           hosts:
-            example_pve_vm:
+            # Membership in this capability group sets `dev_enable_docker: true`
+            # through `ansible/group_vars/docker_enabled.yml`.
+            example_pve_vm: {}
 
         tailscale_enabled:
           hosts:
-            example_remote_dev_vm:
+            # Membership in this capability group sets
+            # `dev_enable_tailscale: true` through
+            # `ansible/group_vars/tailscale_enabled.yml`.
+            example_remote_dev_vm: {}
