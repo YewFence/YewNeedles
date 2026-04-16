@@ -5,29 +5,40 @@
   gather_facts: false
 
   tasks:
+    - name: Build preview lines for each host
+      ansible.builtin.set_fact:
+        _preview_lines: >-
+          {{ _preview_lines | default(['About to initialize these development hosts:'])
+             + ['',
+                '  Host : ' + _h,
+                '  ' + ('─' * 40),
+                '  ansible_connection : ' + (hostvars[_h].ansible_connection | default('ssh') | string),
+                '  ansible_host       : ' + (hostvars[_h].ansible_host | default(_h) | string),
+                '  ansible_user       : ' + (hostvars[_h].ansible_user | default(username | default('UNSET')) | string),
+                '  username           : ' + (hostvars[_h].username | default(username | default('UNSET')) | string),
+                '',
+                '  Network',
+                '    manage       : ' + (hostvars[_h].devbox_network_manage | default(false) | string),
+                '    preset       : ' + (hostvars[_h].devbox_network_preset | default('disabled') | string),
+                '    backend      : ' + (hostvars[_h].devbox_network_backend | default('disabled') | string),
+                '    interface    : ' + (hostvars[_h].devbox_network_interface | default('auto', true) | string),
+                '    gateway      : ' + (hostvars[_h].devbox_network_gateway | default('UNSET') | string),
+                '    dns_servers  : ' + (hostvars[_h].devbox_network_dns_servers | default([]) | join(', ') | string),
+                '    static_ipv4  : ' + (hostvars[_h].devbox_network_static_ipv4 | default('auto/current', true) | string),
+                '',
+                '  Features',
+                '    oh_my_zsh  : ' + (hostvars[_h].dev_enable_oh_my_zsh | default(true) | string),
+                '    mise       : ' + (hostvars[_h].dev_enable_mise | default(true) | string),
+                '    zellij     : ' + (hostvars[_h].dev_enable_zellij | default(true) | string),
+                '    docker     : ' + (hostvars[_h].dev_enable_docker | default(false) | string),
+                '    tailscale  : ' + (hostvars[_h].dev_enable_tailscale | default(false) | string)] }}
+      loop: "{{ groups['devboxes'] | default([]) }}"
+      loop_control:
+        loop_var: _h
+
     - name: Preview host settings before any local or remote changes
       ansible.builtin.debug:
-        msg: |
-          About to initialize these development hosts:
-          {% for host in groups['devboxes'] | default([]) %}
-          - {{ host }}
-            ansible_connection: {{ hostvars[host].ansible_connection | default('ssh') }}
-            ansible_host: {{ hostvars[host].ansible_host | default(host) }}
-            ansible_user: {{ hostvars[host].ansible_user | default(username | default('UNSET')) }}
-            username: {{ hostvars[host].username | default(username | default('UNSET')) }}
-            devbox_network_manage: {{ hostvars[host].devbox_network_manage | default(false) }}
-            devbox_network_preset: {{ hostvars[host].devbox_network_preset | default('disabled') }}
-            devbox_network_backend: {{ hostvars[host].devbox_network_backend | default('disabled') }}
-            devbox_network_interface: {{ hostvars[host].devbox_network_interface | default('auto', true) }}
-            devbox_network_gateway: {{ hostvars[host].devbox_network_gateway | default('UNSET') }}
-            devbox_network_dns_servers: {{ hostvars[host].devbox_network_dns_servers | default([]) | join(', ') }}
-            devbox_network_static_ipv4: {{ hostvars[host].devbox_network_static_ipv4 | default('auto/current', true) }}
-            dev_enable_oh_my_zsh: {{ hostvars[host].dev_enable_oh_my_zsh | default(true) }}
-            dev_enable_mise: {{ hostvars[host].dev_enable_mise | default(true) }}
-            dev_enable_zellij: {{ hostvars[host].dev_enable_zellij | default(true) }}
-            dev_enable_docker: {{ hostvars[host].dev_enable_docker | default(false) }}
-            dev_enable_tailscale: {{ hostvars[host].dev_enable_tailscale | default(false) }}
-          {% endfor %}
+        msg: "{{ _preview_lines }}"
 
     - name: Require a final yes before continuing
       ansible.builtin.pause:
