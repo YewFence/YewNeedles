@@ -1,0 +1,84 @@
+---
+# Keep SSH auth policy in a dedicated drop-in so production hosts can opt in
+# gradually without rewriting the distro base config.
+- name: Ensure the SSH drop-in include exists in the main config
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^[#[:space:]]*Include[[:space:]]+/etc/ssh/sshd_config\.d/\*\.conf$'
+    line: Include /etc/ssh/sshd_config.d/*.conf
+    insertbefore: BOF
+  when: ssh_manage_include_directive | bool
+  notify:
+    - Validate sshd config
+    - Reload ssh service
+
+- name: Ensure the SSH drop-in directory exists
+  ansible.builtin.file:
+    path: "{{ ssh_dropin_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Check whether root authorized_keys exists
+  ansible.builtin.stat:
+    path: /root/.ssh/authorized_keys
+  register: ssh_hardening_root_authorized_keys
+
+- name: Check whether the managed user authorized_keys exists
+  ansible.builtin.stat:
+    path: /home/{{ username }}/.ssh/authorized_keys
+  register: ssh_hardening_user_authorized_keys
+  when: username is defined
+
+- name: Require an explicit second confirmation before disabling password auth
+  ansible.builtin.assert:
+    that:
+      - ssh_disable_password_auth_confirmed | bool
+    fail_msg: >-
+      Refusing to disable SSH password auth without the explicit
+      ssh_disable_password_auth_confirmed=true acknowledgement.
+  when: ssh_disable_password_auth | bool
+
+- name: Refuse to disable password auth when Ansible still uses ansible_password
+  ansible.builtin.assert:
+    that:
+      - ansible_password is not defined
+    fail_msg: >-
+      ansible_password is defined for this host. Verify key-based access from a
+      second session first, then remove ansible_password before disabling SSH
+      password auth.
+  when: ssh_disable_password_auth | bool
+
+- name: Require an existing authorized_keys file before disabling password auth
+  ansible.builtin.assert:
+    that:
+      - >-
+        (ssh_hardening_root_authorized_keys.stat.exists and
+        (ssh_hardening_root_authorized_keys.stat.size | default(0) | int) > 0)
+        or
+        ((ssh_hardening_user_authorized_keys.stat.exists | default(false)) and
+        (ssh_hardening_user_authorized_keys.stat.size | default(0) | int) > 0)
+    fail_msg: >-
+      Refusing to disable SSH password auth because neither root nor
+      /home/{{ username }}/.ssh/authorized_keys currently contains a public key.
+  when:
+    - ssh_disable_password_auth | bool
+    - ssh_require_existing_authorized_keys | bool
+
+- name: Install the managed SSH auth drop-in
+  ansible.builtin.copy:
+    dest: "{{ ssh_dropin_file }}"
+    mode: "0644"
+    content: |
+      # Managed by Ansible. Keep pubkey auth available before touching password auth.
+      {% if ssh_pubkey_authentication | bool %}
+      PubkeyAuthentication yes
+      {% endif %}
+      {% if ssh_disable_password_auth | bool %}
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      ChallengeResponseAuthentication no
+      UsePAM yes
+      {% endif %}
+  notify:
+    - Validate sshd config
+    - Reload ssh service

@@ -1,0 +1,14 @@
+---
+oh_my_zsh_install_script_url: https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
+oh_my_zsh_packages:
+  - zsh
+oh_my_zsh_theme: robbyrussell
+oh_my_zsh_plugins:
+  - git
+  - zsh-autosuggestions
+  - zsh-syntax-highlighting
+oh_my_zsh_custom_plugins:
+  - name: zsh-autosuggestions
+    repo: https://github.com/zsh-users/zsh-autosuggestions
+  - name: zsh-syntax-highlighting
+    repo: https://github.com/zsh-users/zsh-syntax-highlighting.git

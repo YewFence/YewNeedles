@@ -1,0 +1,96 @@
+---
+- name: Initialize Debian or Ubuntu development hosts
+  hosts: devboxes
+  serial: 1
+  become: true
+  gather_facts: false
+
+  vars:
+    common_manage_root_ssh_key: false
+    common_copy_root_authorized_keys: false
+    common_create_temp_password: false
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - username is defined
+          - username | length > 0
+          - username != 'root'
+        fail_msg: Define a non-root username before running the devbox playbook.
+
+    - name: Preview host settings before any local or remote changes
+      ansible.builtin.debug:
+        msg: |
+          About to initialize these development hosts:
+          {% for host in ansible_play_hosts_all %}
+          - {{ host }}
+            ansible_connection: {{ hostvars[host].ansible_connection | default('ssh') }}
+            ansible_host: {{ hostvars[host].ansible_host | default(host) }}
+            ansible_user: {{ hostvars[host].ansible_user | default(username) }}
+            username: {{ hostvars[host].username | default('UNSET') }}
+            dev_enable_homebrew: {{ hostvars[host].dev_enable_homebrew | default(true) }}
+            dev_enable_oh_my_zsh: {{ hostvars[host].dev_enable_oh_my_zsh | default(true) }}
+            dev_enable_zellij: {{ hostvars[host].dev_enable_zellij | default(true) }}
+          {% endfor %}
+      run_once: true
+      delegate_to: localhost
+
+    - name: Require a final yes before continuing
+      ansible.builtin.pause:
+        prompt: Type "yes" to continue. Any other input will cancel the run.
+      register: init_confirmation
+      run_once: true
+      delegate_to: localhost
+
+    - name: Abort when the operator does not confirm
+      ansible.builtin.fail:
+        msg: Cancelled before making changes.
+      when: init_confirmation.user_input | lower != 'yes'
+      run_once: true
+      delegate_to: localhost
+
+  tasks:
+    - name: Apply the shared baseline used by both servers and devboxes
+      ansible.builtin.include_role:
+        name: common
+
+    - name: Install and configure Homebrew for development hosts
+      ansible.builtin.include_role:
+        name: homebrew
+      when: dev_enable_homebrew | default(true) | bool
+
+    - name: Install and configure Oh My Zsh for the managed user
+      ansible.builtin.include_role:
+        name: oh_my_zsh
+      when: dev_enable_oh_my_zsh | default(true) | bool
+
+    - name: Install and configure zellij for interactive shells
+      ansible.builtin.include_role:
+        name: zellij
+      when: dev_enable_zellij | default(true) | bool
+
+  post_tasks:
+    - name: Read Homebrew version for the summary
+      ansible.builtin.command: "{{ homebrew_brew_bin }} --version"
+      register: homebrew_version
+      changed_when: false
+      when:
+        - dev_enable_homebrew | default(true) | bool
+        - homebrew_brew_bin is defined
+        - homebrew_brew_bin | length > 0
+
+    - name: Print the final summary
+      ansible.builtin.debug:
+        msg: |
+          Development initialization finished for {{ inventory_hostname }}.
+          Enabled roles:
+            common: true
+            homebrew: {{ dev_enable_homebrew | default(true) | bool }}
+            oh_my_zsh: {{ dev_enable_oh_my_zsh | default(true) | bool }}
+            zellij: {{ dev_enable_zellij | default(true) | bool }}
+          {% if dev_enable_homebrew | default(true) | bool and homebrew_version is defined %}
+
+          Homebrew version:
+          {{ homebrew_version.stdout_lines | join('\n') }}
+          {% endif %}

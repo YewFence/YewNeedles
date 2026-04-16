@@ -1,0 +1,16 @@
+---
+zellij_packages:
+  - zellij
+  - fastfetch
+zellij_session_name: main
+zellij_shell_rc_files:
+  - /home/{{ username }}/.bashrc
+  - /home/{{ username }}/.zshrc
+zellij_autostart_block: |
+  if [[ $- == *i* ]]; then
+    if command -v zellij >/dev/null 2>&1 && [[ -z "${ZELLIJ:-}" ]]; then
+      zellij attach --create {{ zellij_session_name }}
+    elif command -v fastfetch >/dev/null 2>&1 && [[ "${ZELLIJ_PANE_ID:-}" == "0" ]]; then
+      fastfetch --pipe false
+    fi
+  fi

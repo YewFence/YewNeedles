@@ -1,0 +1,9 @@
+---
+enable_ssh_hardening: true
+ssh_pubkey_authentication: true
+ssh_disable_password_auth: false
+ssh_disable_password_auth_confirmed: false
+ssh_require_existing_authorized_keys: true
+ssh_manage_include_directive: true
+ssh_dropin_dir: /etc/ssh/sshd_config.d
+ssh_dropin_file: "{{ ssh_dropin_dir }}/99-yewneedles-auth.conf"

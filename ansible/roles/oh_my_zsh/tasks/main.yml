@@ -1,0 +1,84 @@
+---
+- name: Install zsh
+  ansible.builtin.apt:
+    name: "{{ oh_my_zsh_packages }}"
+    state: present
+    update_cache: true
+
+- name: Resolve the zsh binary path
+  ansible.builtin.shell: command -v zsh
+  args:
+    executable: /bin/bash
+  register: oh_my_zsh_binary
+  changed_when: false
+
+- name: Ensure the managed user uses zsh as the login shell
+  ansible.builtin.user:
+    name: "{{ username }}"
+    shell: "{{ oh_my_zsh_binary.stdout }}"
+
+- name: Check whether Oh My Zsh is already installed
+  ansible.builtin.stat:
+    path: /home/{{ username }}/.oh-my-zsh
+  register: oh_my_zsh_dir
+
+- name: Install Oh My Zsh in unattended mode
+  ansible.builtin.shell: sh -c "$(curl -fsSL {{ oh_my_zsh_install_script_url }})" "" --unattended
+  args:
+    executable: /bin/bash
+  environment:
+    CHSH: "no"
+    HOME: /home/{{ username }}
+    KEEP_ZSHRC: "yes"
+    RUNZSH: "no"
+  become_user: "{{ username }}"
+  when: not oh_my_zsh_dir.stat.exists
+
+- name: Install custom Oh My Zsh plugins
+  ansible.builtin.git:
+    repo: "{{ item.repo }}"
+    dest: /home/{{ username }}/.oh-my-zsh/custom/plugins/{{ item.name }}
+    version: master
+    update: true
+  become_user: "{{ username }}"
+  loop: "{{ oh_my_zsh_custom_plugins }}"
+
+- name: Ensure the ZSH path is declared in .zshrc
+  ansible.builtin.lineinfile:
+    path: /home/{{ username }}/.zshrc
+    regexp: '^export ZSH='
+    line: 'export ZSH="$HOME/.oh-my-zsh"'
+    create: true
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0644"
+
+- name: Ensure the Oh My Zsh theme is declared in .zshrc
+  ansible.builtin.lineinfile:
+    path: /home/{{ username }}/.zshrc
+    regexp: '^ZSH_THEME='
+    line: 'ZSH_THEME="{{ oh_my_zsh_theme }}"'
+    create: true
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0644"
+
+- name: Ensure the expected Oh My Zsh plugins are enabled
+  ansible.builtin.lineinfile:
+    path: /home/{{ username }}/.zshrc
+    regexp: '^plugins=\(.*\)$'
+    line: "plugins=({{ oh_my_zsh_plugins | join(' ') }})"
+    create: true
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0644"
+
+- name: Ensure .zshrc sources Oh My Zsh
+  ansible.builtin.lineinfile:
+    path: /home/{{ username }}/.zshrc
+    regexp: '^source \$ZSH/oh-my-zsh\.sh$'
+    line: 'source $ZSH/oh-my-zsh.sh'
+    create: true
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0644"
