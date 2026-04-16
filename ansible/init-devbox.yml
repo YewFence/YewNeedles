@@ -130,7 +130,9 @@
           Reconnect target: {{ devbox_network_reconnect_target | default('unchanged') | default('unchanged', true) }}
           Inventory update needed: {{ devbox_network_inventory_update_needed | default(false) | bool }}
           Configured static IPv4: {{ devbox_network_static_ipv4 | default('') | default('auto/current', true) }}
-          Default gateway: {{ devbox_network_gateway | default('unchanged') }}
+          Configured default gateway: {{ devbox_network_gateway | default('unchanged') }}
+          Effective default gateway: {{ devbox_network_effective_gateway | default('unknown') | default('unknown', true) }}
+          Effective default route: {{ devbox_network_effective_default_route | default('unknown') | default('unknown', true) }}
           DNS servers: {{ devbox_network_dns_servers | default([]) | join(', ') }}
           Gateway persistence confirmed: {{ devbox_network_gateway_persistent | default(false) | bool }}
           {% if devbox_network_inventory_update_needed | default(false) | bool %}

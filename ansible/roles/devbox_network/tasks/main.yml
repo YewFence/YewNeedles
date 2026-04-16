@@ -3,6 +3,9 @@
   ansible.builtin.set_fact:
     devbox_network_applied_backend: disabled
     devbox_network_gateway_persistent: false
+    devbox_network_effective_default_route: ""
+    devbox_network_effective_gateway: ""
+    devbox_network_effective_interface: ""
     devbox_network_selected_interface: ""
     devbox_network_selected_connection_name: ""
     devbox_network_reconnect_target: ""
