@@ -1,4 +1,6 @@
 ---
+dev_enable_qemu_guest_agent: true
+
 devbox_network_manage: true
 devbox_network_preset: pve_vm
 devbox_network_backend: nmcli

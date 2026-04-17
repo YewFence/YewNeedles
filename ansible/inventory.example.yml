@@ -370,6 +370,11 @@ all:
               # ansible_become_password: "{{ lookup('ansible.builtin.env', become_password_env_var) }}"
 
         pve_vms:
+          # vars:
+            # Optional: install and enable qemu-guest-agent inside PVE VMs.
+            # Enabled by default in `group_vars/pve_vms.yml`.
+            # dev_enable_qemu_guest_agent: true
+
           hosts:
             example_pve_vm:
               # Private IP or DNS name of the Proxmox VM.

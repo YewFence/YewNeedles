@@ -27,6 +27,7 @@
                 '    static_ipv4  : ' + (hostvars[_h].devbox_network_static_ipv4 | default('auto/current', true) | string),
                 '',
                 '  Features',
+                '    qemu_guest_agent : ' + (hostvars[_h].dev_enable_qemu_guest_agent | default(false) | string),
                 '    oh_my_zsh  : ' + (hostvars[_h].dev_enable_oh_my_zsh | default(true) | string),
                 '    mise       : ' + (hostvars[_h].dev_enable_mise | default(true) | string),
                 '    zellij     : ' + (hostvars[_h].dev_enable_zellij | default(true) | string),
@@ -80,6 +81,11 @@
       ansible.builtin.include_role:
         name: common
 
+    - name: Install and start qemu-guest-agent on Proxmox VMs
+      ansible.builtin.include_role:
+        name: qemu_guest_agent
+      when: dev_enable_qemu_guest_agent | default(false) | bool
+
     - name: Install and configure Oh My Zsh for the managed user
       ansible.builtin.include_role:
         name: oh_my_zsh
@@ -126,6 +132,7 @@
           Enabled roles:
             devbox_network: {{ devbox_network_manage | default(false) | bool }}
             common: true
+            qemu_guest_agent: {{ dev_enable_qemu_guest_agent | default(false) | bool }}
             oh_my_zsh: {{ dev_enable_oh_my_zsh | default(true) | bool }}
             mise: {{ dev_enable_mise | default(true) | bool }}
             zellij: {{ dev_enable_zellij | default(true) | bool }}
