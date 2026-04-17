@@ -10,6 +10,8 @@ mise_tools_dev:
   "zellij": latest
   "gh": latest
   "github:Apts-1547/gcop-rs": latest
+  "uv": latest
+  "node": lts
 devbox_network_manage: false
 devbox_network_preset: disabled
 devbox_network_backend: disabled
