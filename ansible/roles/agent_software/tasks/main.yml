@@ -81,9 +81,8 @@
       - "{{ agent_software_cc_switch_tool_spec }}"
       - --
       - cc-switch
-      - config
       - proxy
-      - --enable
+      - enable
   environment:
     HOME: /home/{{ username }}
   become: true
