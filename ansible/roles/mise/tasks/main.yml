@@ -77,7 +77,7 @@
          | list }}
   when: mise_missing_tools.stdout | trim | length > 0
 
-- name: "Install mise tool: {{ item | default('(none)') }}"
+- name: Install missing mise tools
   ansible.builtin.command:
     argv:
       - "{{ mise_binary_path }}"
@@ -93,6 +93,8 @@
   until: mise_tool_install is not failed
   changed_when: true
   loop: "{{ mise_missing_tool_list | default([]) }}"
+  loop_control:
+    label: "{{ item }}"
   when: mise_missing_tool_list | default([]) | length > 0
 
 - name: Install mise shell activation blocks

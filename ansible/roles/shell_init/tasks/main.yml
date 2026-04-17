@@ -20,7 +20,7 @@
     state: directory
     mode: "0755"
 
-- name: "Generate zsh completion for {{ item.name }}"
+- name: Generate zsh completions
   ansible.builtin.command:
     cmd: "{{ item.cmd }}"
   environment:
@@ -34,7 +34,7 @@
     label: "{{ item.name }}"
   when: item.enabled | bool
 
-- name: "Install zsh completion for {{ item.item.name }}"
+- name: Install zsh completions
   ansible.builtin.copy:
     content: "{{ item.stdout }}"
     dest: "{{ shell_init_completions_dir }}/{{ item.item.dest }}"
