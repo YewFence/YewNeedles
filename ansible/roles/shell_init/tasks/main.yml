@@ -1,0 +1,45 @@
+---
+- name: Add shell tool initializations to {{ shell_init_rc_file }}
+  ansible.builtin.blockinfile:
+    path: "{{ shell_init_rc_file }}"
+    create: true
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0644"
+    marker: "# {mark} YewNeedles Shell Init"
+    block: |
+      {% for item in shell_init_entries %}
+      {% if item.enabled | bool %}
+      {{ item.eval }}
+      {% endif %}
+      {% endfor %}
+
+- name: Ensure the zsh site-functions directory exists
+  ansible.builtin.file:
+    path: "{{ shell_init_completions_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: "Generate zsh completion for {{ item.name }}"
+  ansible.builtin.command:
+    cmd: "{{ item.cmd }}"
+  environment:
+    HOME: "/home/{{ username }}"
+  become: true
+  become_user: "{{ username }}"
+  register: _shell_init_completion_results
+  changed_when: false
+  loop: "{{ shell_init_completions }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.enabled | bool
+
+- name: "Install zsh completion for {{ item.item.name }}"
+  ansible.builtin.copy:
+    content: "{{ item.stdout }}"
+    dest: "{{ shell_init_completions_dir }}/{{ item.item.dest }}"
+    mode: "0644"
+  loop: "{{ _shell_init_completion_results.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: item is not skipped

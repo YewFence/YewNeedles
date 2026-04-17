@@ -162,6 +162,11 @@
         name: mise
       when: enable_mise | default(true) | bool
 
+    - name: Initialize shell integrations for mise-managed tools
+      ansible.builtin.include_role:
+        name: shell_init
+      when: enable_mise | default(true) | bool
+
     # Keep SSH auth changes isolated so password auth can be disabled in a
     # separate, explicit step after key login is verified.
     - name: Manage SSH auth hardening without forcing lockout-prone defaults

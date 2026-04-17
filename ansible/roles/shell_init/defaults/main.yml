@@ -1,0 +1,23 @@
+---
+shell_init_rc_file: /home/{{ username }}/.zshrc
+shell_init_mise_bin: /home/{{ username }}/.local/bin/mise
+
+shell_init_entries:
+  - name: zoxide
+    eval: 'eval "$(zoxide init zsh)"'
+    enabled: true
+  - name: fzf
+    eval: 'eval "$(fzf --zsh)"'
+    enabled: true
+
+shell_init_completions_dir: /usr/local/share/zsh/site-functions
+
+shell_init_completions:
+  - name: mise
+    cmd: "{{ shell_init_mise_bin }} completion zsh"
+    dest: "_mise"
+    enabled: true
+  - name: gh
+    cmd: "{{ shell_init_mise_bin }} exec -- gh completion -s zsh"
+    dest: "_gh"
+    enabled: "{{ mise_enable_dev_tools | default(false) }}"
