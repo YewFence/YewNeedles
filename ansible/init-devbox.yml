@@ -117,6 +117,10 @@
         name: agent_software
       when: dev_enable_agent_software | default(false) | bool
 
+    - name: Configure shell aliases for installed tools
+      ansible.builtin.include_role:
+        name: shell_aliases
+
   post_tasks:
     - name: Read mise version for the summary
       ansible.builtin.command: "{{ mise_managed_binary_path }} --version"
