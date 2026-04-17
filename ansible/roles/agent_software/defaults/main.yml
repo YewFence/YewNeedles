@@ -3,8 +3,8 @@ agent_software_mise_binary_path: /home/{{ username }}/.local/bin/mise
 
 # Tools to install via mise
 agent_software_mise_tools:
-  "node:codex": "latest"
-  "node:@anthropic-ai/claude-code": "latest"
+  "codex": "latest"
+  "claude-code": "latest"
   "github:SaladDay/cc-switch-cli": "latest"
 
 # cc-switch WebDAV configuration
