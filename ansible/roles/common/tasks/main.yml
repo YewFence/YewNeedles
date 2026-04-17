@@ -65,7 +65,7 @@
 - name: Ensure the managed user exists
   ansible.builtin.user:
     name: "{{ username }}"
-    shell: "{{ common_user_shell }}"
+    shell: "{{ common_user_shell if (common_user_created | bool) else omit }}"
     create_home: true
     groups: "{{ common_user_groups }}"
     append: true
@@ -92,12 +92,13 @@
     - common_copy_root_authorized_keys | bool
 
 - name: Create an empty managed user authorized_keys file when not copying keys
-  ansible.builtin.file:
-    path: /home/{{ username }}/.ssh/authorized_keys
-    state: touch
+  ansible.builtin.copy:
+    dest: /home/{{ username }}/.ssh/authorized_keys
+    content: ""
     owner: "{{ username }}"
     group: "{{ username }}"
     mode: "0600"
+    force: false
   when:
     - common_manage_user | bool
     - not common_copy_root_authorized_keys | bool

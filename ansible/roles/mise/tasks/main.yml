@@ -67,22 +67,32 @@
   register: mise_missing_tools
   changed_when: false
 
-- name: Install tools declared in the rendered global mise config
+- name: Build the list of missing mise tools to install
+  ansible.builtin.set_fact:
+    mise_missing_tool_list: >-
+      {{ mise_missing_tools.stdout_lines
+         | map('split')
+         | map('first')
+         | list }}
+  when: mise_missing_tools.stdout | trim | length > 0
+
+- name: "Install mise tool: {{ item | default('(none)') }}"
   ansible.builtin.command:
     argv:
       - "{{ mise_binary_path }}"
       - install
+      - "{{ item }}"
   environment:
     HOME: /home/{{ username }}
   become: true
   become_user: "{{ username }}"
-  register: mise_tools_install
+  register: mise_tool_install
   retries: "{{ fetch_retries }}"
   delay: "{{ fetch_retry_delay }}"
-  until: mise_tools_install is not failed
+  until: mise_tool_install is not failed
   changed_when: true
-  when:
-    - mise_config_render is changed or not mise_binary_stat.stat.exists or mise_missing_tools.stdout | trim | length > 0
+  loop: "{{ mise_missing_tool_list | default([]) }}"
+  when: mise_missing_tool_list | default([]) | length > 0
 
 - name: Install mise shell activation blocks
   ansible.builtin.blockinfile:

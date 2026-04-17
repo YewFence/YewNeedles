@@ -162,18 +162,15 @@
   ansible.builtin.service:
     name: "{{ devbox_network_nm_service_name }}"
     state: restarted
+  register: devbox_network_nm_restarted
+  when: >-
+    (devbox_network_interfaces_file is changed)
+    or (devbox_network_nm_ifupdown_conf is changed)
+    or (devbox_network_nm_device_conf is changed)
 
-- name: Flush NetworkManager handlers before nmcli changes
-  ansible.builtin.meta: flush_handlers
-
-- name: Reset SSH connection after NetworkManager restart
-  ansible.builtin.meta: reset_connection
-
-- name: Wait for host to be reachable after NM takeover
-  ansible.builtin.wait_for_connection:
-    delay: 5
-    timeout: 90
-    sleep: 3
+- name: Reconnect SSH after NetworkManager restart
+  ansible.builtin.include_tasks: reset_connection.yml
+  when: devbox_network_nm_restarted is changed
 
 # ===========================================================================
 #  Phase 4 — Verify NM has taken over the interface
@@ -328,6 +325,7 @@
     autoconnect: true
     conn_reload: true
     state: present
+  register: devbox_network_nm_profile
 
 - name: Reapply device configuration to activate changes without dropping the link
   ansible.builtin.command:
@@ -339,6 +337,7 @@
   register: devbox_network_nm_reapply
   changed_when: devbox_network_nm_reapply.rc == 0
   failed_when: false
+  when: devbox_network_nm_profile is changed
 
 - name: Compute the SSH reconnect target after the network change
   ansible.builtin.set_fact:
