@@ -19,4 +19,12 @@ if [[ "$action" == "create" ]]; then
   mkdir -p "$(dirname "$file")"
 fi
 
-ansible-vault "$action" "$file"
+vault_pass_args=()
+for f in .vault_pass .vault_pass.txt .vault-password .vault_password; do
+  if [[ -f "$f" ]]; then
+    vault_pass_args=(--vault-password-file "$f")
+    break
+  fi
+done
+
+ansible-vault "$action" "${vault_pass_args[@]}" "$file"
