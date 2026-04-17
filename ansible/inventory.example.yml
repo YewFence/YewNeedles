@@ -32,7 +32,6 @@ all:
     #   - vim
     #   - unzip
     #   - tar
-    #   - htop
 
     # Optional: control whether the common role should manage the non-root user.
     # Leave enabled for normal bootstrap; disable only when the account already
@@ -55,9 +54,18 @@ all:
     # Optional: Vim configuration content written by the common role.
     # Override when you want a different baseline editor behavior.
     # common_vimrc_content: |
+    #   " Keep Docker bind-mount file updates working.
     #   set backupcopy=yes
+    #
+    #   " Basic terminal editing quality-of-life settings.
     #   syntax on
     #   set number
+    #   set ruler
+    #   set autoindent
+    #   set mouse=a
+    #   set tabstop=2
+    #   set shiftwidth=2
+    #   set expandtab
 
   children:
     servers:
@@ -226,7 +234,7 @@ all:
         # dev_enable_oh_my_zsh: true
 
         # Optional: install mise and render the managed global tool config.
-        # dev_enable_mise: true
+        # enable_mise: true
 
         # Optional: configure zellij autostart for interactive shells.
         # dev_enable_zellij: true
@@ -245,15 +253,10 @@ all:
         # devbox_network_preset: disabled
         # devbox_network_backend: disabled
         # devbox_network_interface: ""
-        # devbox_network_gateway: 192.168.8.2
-        # devbox_network_dns_servers:
-        #   - 192.168.8.2
-        # devbox_network_static_ipv4: 192.168.8.10/24
-        # devbox_network_reconnect_host: 192.168.8.10
-
-        # Optional: when `true`, also add zellij-related tools to the rendered
-        # mise config. The repo default already derives this from zellij.
-        # mise_enable_zellij_tools: true
+        # devbox_network_gateway: ""
+        # devbox_network_dns_servers: []
+        # devbox_network_static_ipv4: ""
+        # devbox_network_reconnect_host: ""
 
         # Optional: override the mise installer URL when using a mirror.
         # mise_install_script_url: https://mise.run
@@ -321,7 +324,9 @@ all:
         # zellij_autostart_block: |
         #   if [[ $- == *i* ]]; then
         #     if command -v zellij >/dev/null 2>&1 && [[ -z "${ZELLIJ:-}" ]]; then
-        #       zellij attach --create main
+        #       zellij attach --create {{ zellij_session_name }}
+        #     elif command -v fastfetch >/dev/null 2>&1 && [[ "${ZELLIJ_PANE_ID:-}" == "0" ]]; then
+        #       fastfetch --pipe false
         #     fi
         #   fi
 
