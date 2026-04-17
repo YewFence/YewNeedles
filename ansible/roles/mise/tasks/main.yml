@@ -25,11 +25,14 @@
     argv:
       - /bin/sh
       - "{{ mise_install_script_dest }}"
-    creates: "{{ mise_binary_path }}"
   environment:
     HOME: /home/{{ username }}
   become: true
   become_user: "{{ username }}"
+  register: mise_install_result
+  retries: "{{ fetch_retries }}"
+  delay: "{{ fetch_retry_delay }}"
+  until: mise_install_result is not failed
   when: not mise_binary_stat.stat.exists
 
 - name: Ensure the managed user's mise config directory exists
@@ -73,6 +76,10 @@
     HOME: /home/{{ username }}
   become: true
   become_user: "{{ username }}"
+  register: mise_tools_install
+  retries: "{{ fetch_retries }}"
+  delay: "{{ fetch_retry_delay }}"
+  until: mise_tools_install is not failed
   changed_when: true
   when:
     - mise_config_render is changed or not mise_binary_stat.stat.exists or mise_missing_tools.stdout | trim | length > 0

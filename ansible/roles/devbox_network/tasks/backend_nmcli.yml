@@ -1,4 +1,8 @@
 ---
+# ===========================================================================
+#  Phase 1 — Install NetworkManager and detect the target interface
+# ===========================================================================
+
 - name: Install NetworkManager on non-WSL devboxes
   ansible.builtin.apt:
     name: "{{ devbox_network_nm_packages }}"
@@ -21,64 +25,6 @@
     path: /usr/sbin/dhcpcd
   register: devbox_network_dhcpcd_exists
   changed_when: false
-
-- name: Disable and stop networking service to prevent ifupdown from managing interfaces
-  ansible.builtin.service:
-    name: networking
-    state: stopped
-    enabled: false
-  failed_when: false
-
-- name: Stop dhcpcd to prevent it from managing the target interface
-  ansible.builtin.command:
-    argv:
-      - /usr/sbin/dhcpcd
-      - -k
-      - "{{ devbox_network_selected_interface }}"
-  become: true
-  changed_when: false
-  failed_when: false
-  when: devbox_network_dhcpcd_exists.stat.exists
-
-- name: Bring down the interface via ifupdown to release DHCP lease (async — SSH will drop)
-  ansible.builtin.command:
-    argv:
-      - ifdown
-      - --force
-      - "{{ devbox_network_selected_interface }}"
-  async: 30
-  poll: 0
-  changed_when: true
-  when: devbox_network_ifupdown_exists.stat.exists
-
-- name: Wait for SSH to come back after ifdown (NM autoconnect will restore the interface)
-  ansible.builtin.wait_for_connection:
-    delay: 5
-    timeout: 60
-    sleep: 3
-  when: devbox_network_ifupdown_exists.stat.exists
-
-- name: Replace /etc/network/interfaces with minimal loopback-only config
-  ansible.builtin.copy:
-    dest: /etc/network/interfaces
-    mode: "0644"
-    content: |
-      # This file is managed by YewNeedles devbox_network role.
-      # All physical interfaces are managed by NetworkManager.
-      source /etc/network/interfaces.d/*
-
-      auto lo
-      iface lo inet loopback
-  when: devbox_network_ifupdown_exists.stat.exists
-
-- name: Ensure NetworkManager is enabled and running
-  ansible.builtin.service:
-    name: "{{ devbox_network_nm_service_name }}"
-    enabled: true
-    state: started
-
-- name: Flush NetworkManager handlers before nmcli changes
-  ansible.builtin.meta: flush_handlers
 
 - name: Validate the configured interface override when one is provided
   ansible.builtin.command:
@@ -133,17 +79,35 @@
       Raw `ip -o route show default` output:
       {{ devbox_network_default_route.stdout | default('<empty>', true) }}
 
-- name: Read NetworkManager device state for the selected interface
-  ansible.builtin.command:
-    argv:
-      - nmcli
-      - -g
-      - GENERAL.STATE
-      - device
-      - show
-      - "{{ devbox_network_selected_interface }}"
-  register: devbox_network_nm_selected_device_state
-  changed_when: false
+# ===========================================================================
+#  Phase 2 — Configure NM to manage the target interface BEFORE disabling
+#            competing services.  This is critical: NM must be fully ready
+#            to take over so the interface never goes down.
+# ===========================================================================
+
+- name: Replace /etc/network/interfaces with minimal loopback-only config
+  ansible.builtin.copy:
+    dest: /etc/network/interfaces
+    mode: "0644"
+    content: |
+      # This file is managed by YewNeedles devbox_network role.
+      # All physical interfaces are managed by NetworkManager.
+      source /etc/network/interfaces.d/*
+
+      auto lo
+      iface lo inet loopback
+  when: devbox_network_ifupdown_exists.stat.exists
+  register: devbox_network_interfaces_file
+
+- name: Tell NetworkManager to manage interfaces previously owned by ifupdown
+  ansible.builtin.copy:
+    dest: "{{ devbox_network_nm_ifupdown_conf_path }}"
+    mode: "0644"
+    content: |
+      # Managed by YewNeedles devbox_network role.
+      [ifupdown]
+      managed=true
+  register: devbox_network_nm_ifupdown_conf
 
 - name: Persist a NetworkManager override that manages the selected interface
   ansible.builtin.copy:
@@ -153,15 +117,69 @@
       [device-yewneedles-{{ devbox_network_selected_interface }}]
       match-device=interface-name:{{ devbox_network_selected_interface }}
       managed=1
-  when: devbox_network_nm_selected_device_state.stdout is search('unmanaged')
+  register: devbox_network_nm_device_conf
 
-- name: Restart NetworkManager when the selected interface is still unmanaged
+# ===========================================================================
+#  Phase 3 — Evict competing DHCP clients BEFORE restarting NM.
+#
+#  Order matters:
+#    1. SIGKILL dhcpcd immediately — avoids the hang from `dhcpcd -k` which
+#       waits for a socket reply that never comes.  SIGKILL does NOT run
+#       dhcpcd's RELEASE hook, so the kernel IP is preserved.
+#    2. Stop networking.service (ifupdown) — /etc/network/interfaces is now
+#       lo-only, so `ifdown -a --exclude=lo` finds nothing and the interface
+#       stays up.
+#    3. Restart NM — NM finds the interface UP with an IP and no competing
+#       DHCP client, assumes the address, and does NOT re-do DHCP.
+# ===========================================================================
+
+- name: Kill dhcpcd immediately (SIGKILL) to free the interface without releasing the IP
+  ansible.builtin.command:
+    argv:
+      - pkill
+      - -KILL
+      - -x
+      - dhcpcd
+  become: true
+  changed_when: false
+  failed_when: false
+  when: devbox_network_dhcpcd_exists.stat.exists
+
+- name: Disable and stop networking service (ifupdown) — /etc/network/interfaces is now lo-only
+  ansible.builtin.service:
+    name: networking
+    state: stopped
+    enabled: false
+  failed_when: false
+
+- name: Ensure NetworkManager is enabled and running
+  ansible.builtin.service:
+    name: "{{ devbox_network_nm_service_name }}"
+    enabled: true
+    state: started
+
+- name: Restart NetworkManager to pick up config overrides and assume the interface
   ansible.builtin.service:
     name: "{{ devbox_network_nm_service_name }}"
     state: restarted
-  when: devbox_network_nm_selected_device_state.stdout is search('unmanaged')
 
-- name: Re-read NetworkManager device state after applying management overrides
+- name: Flush NetworkManager handlers before nmcli changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Reset SSH connection after NetworkManager restart
+  ansible.builtin.meta: reset_connection
+
+- name: Wait for host to be reachable after NM takeover
+  ansible.builtin.wait_for_connection:
+    delay: 5
+    timeout: 90
+    sleep: 3
+
+# ===========================================================================
+#  Phase 4 — Verify NM has taken over the interface
+# ===========================================================================
+
+- name: Wait for NetworkManager to connect the interface after takeover
   ansible.builtin.command:
     argv:
       - nmcli
@@ -172,6 +190,11 @@
       - "{{ devbox_network_selected_interface }}"
   register: devbox_network_nm_selected_device_state_after
   changed_when: false
+  retries: 15
+  delay: 2
+  until: >-
+    devbox_network_nm_selected_device_state_after.rc == 0
+    and devbox_network_nm_selected_device_state_after.stdout is search('connected')
 
 - name: Require NetworkManager to manage the selected interface before profile changes
   ansible.builtin.assert:
@@ -182,6 +205,10 @@
       after applying the repository's management overrides. Current device state:
       {{ devbox_network_nm_selected_device_state_after.stdout | default('<empty>', true) }}
       This host is likely still controlled by another network stack.
+
+# ===========================================================================
+#  Phase 5 — Discover the active connection and resolve the target IP
+# ===========================================================================
 
 - name: Read the NetworkManager connection currently attached to the default interface
   ansible.builtin.command:
@@ -273,6 +300,10 @@
       }}
   changed_when: false
 
+# ===========================================================================
+#  Phase 6 — Apply the NetworkManager profile and activate
+# ===========================================================================
+
 - name: Show the device and connection chosen for NetworkManager updates
   ansible.builtin.debug:
     msg: |
@@ -361,6 +392,10 @@
   poll: 0
   register: devbox_network_activation_job
   when: devbox_network_reconnect_target != (ansible_host | default(inventory_hostname))
+
+# ===========================================================================
+#  Phase 7 — Reconnect and validate
+# ===========================================================================
 
 - name: Update ansible_host to the reconnect target when the IP changes
   ansible.builtin.set_fact:
