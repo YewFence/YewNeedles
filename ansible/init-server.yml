@@ -71,31 +71,39 @@
       loop_control:
         label: "{{ item }}"
 
+    - name: Build preview lines for each host
+      ansible.builtin.set_fact:
+        _preview_lines: >-
+          {{ _preview_lines | default(['About to initialize these server hosts:'])
+             + ['',
+                '  Host : ' + _h,
+                '  ' + ('─' * 40),
+                '  ansible_host       : ' + (hostvars[_h].ansible_host | default(_h) | string),
+                '  ansible_user       : ' + (hostvars[_h].ansible_user | default('root') | string),
+                '  ansible_port       : ' + (hostvars[_h].ansible_port | default('UNSET') | string),
+                '  username           : ' + (hostvars[_h].username | default(username | default('UNSET')) | string),
+                '  sshid_username     : ' + (hostvars[_h].sshid_username | default(hostvars[_h].username | default(username | default('UNSET'))) | string),
+                '',
+                '  Features',
+                '    ssh_hardening     : ' + (hostvars[_h].enable_ssh_hardening | default(true) | string),
+                '    ssh_disable_pw    : ' + (hostvars[_h].ssh_disable_password_auth | default(false) | string),
+                '    bbr               : ' + (hostvars[_h].enable_bbr | default(true) | string),
+                '    swap              : ' + (hostvars[_h].enable_swap | default(true) | string),
+                '    swap_size         : ' + (hostvars[_h].swap_size | default('UNSET') | string),
+                '    ufw               : ' + (hostvars[_h].enable_ufw | default(true) | string),
+                '    docker            : ' + (hostvars[_h].enable_docker | default(true) | string),
+                '    tailscale         : ' + (hostvars[_h].enable_tailscale | default(true) | string),
+                '    mise              : ' + (hostvars[_h].enable_mise | default(true) | string),
+                '',
+                '  Authorized Keys (sshid.io + ' + server_init_repo_authorized_keys_file + ')']
+             + (server_init_authorized_keys_map[_h].split('\n') | map('regex_replace', '^', '    ') | list) }}
+      loop: "{{ groups['servers'] | default([]) }}"
+      loop_control:
+        loop_var: _h
+
     - name: Preview host settings before any remote changes
       ansible.builtin.debug:
-        msg: |
-          About to initialize these hosts:
-          {% for host in groups['servers'] | default([]) %}
-          - {{ host }}
-            ansible_host: {{ hostvars[host].ansible_host | default(host) }}
-            ansible_user: {{ hostvars[host].ansible_user | default('root') }}
-            ansible_port: {{ hostvars[host].ansible_port | default('UNSET') }}
-            username: {{ hostvars[host].username | default(username | default('UNSET')) }}
-            sshid_username: {{ hostvars[host].sshid_username | default(hostvars[host].username | default(username | default('UNSET'))) }}
-            enable_bbr: {{ hostvars[host].enable_bbr | default(true) }}
-            enable_swap: {{ hostvars[host].enable_swap | default(true) }}
-            swap_size: {{ hostvars[host].swap_size | default('UNSET') }}
-            enable_ssh_hardening: {{ hostvars[host].enable_ssh_hardening | default(true) }}
-            ssh_disable_password_auth: {{ hostvars[host].ssh_disable_password_auth | default(false) }}
-            enable_ufw: {{ hostvars[host].enable_ufw | default(true) }}
-            enable_docker: {{ hostvars[host].enable_docker | default(true) }}
-            enable_tailscale: {{ hostvars[host].enable_tailscale | default(true) }}
-            repo_authorized_keys_file: {{ server_init_repo_authorized_keys_file }}
-            authorized_keys_preview:
-          {% for key_line in server_init_authorized_keys_map[host].split('\n') %}
-            - {{ key_line }}
-          {% endfor %}
-          {% endfor %}
+        msg: "{{ _preview_lines }}"
 
     - name: Require a final yes before continuing
       ansible.builtin.pause:
@@ -113,6 +121,9 @@
   become: true
   gather_facts: false
   vars:
+    common_manage_root_ssh_key: true
+    common_copy_root_authorized_keys: true
+    common_create_temp_password: true
     common_authorized_keys_content: >-
       {{ hostvars['localhost'].server_init_authorized_keys_map[inventory_hostname] | default('') }}
 
@@ -143,7 +154,7 @@
     - name: Install mise and render the global tool configuration
       ansible.builtin.include_role:
         name: mise
-      when: enable_mise | default(false) | bool
+      when: enable_mise | default(true) | bool
 
     # Keep SSH auth changes isolated so password auth can be disabled in a
     # separate, explicit step after key login is verified.
@@ -188,7 +199,7 @@
       register: mise_version
       changed_when: false
       when:
-        - enable_mise | default(false) | bool
+        - enable_mise | default(true) | bool
 
     # Collect a short end-of-run summary without assuming every optional role ran.
     - name: Read Docker version for the summary
@@ -214,7 +225,9 @@
             ufw: {{ enable_ufw | default(true) | bool }}
             docker_host: {{ enable_docker | default(true) | bool }}
             tailscale: {{ enable_tailscale | default(true) | bool }}
-            mise: {{ enable_mise | default(false) | bool }}
+            mise: {{ enable_mise | default(true) | bool }}
+          SSH port: {{ ansible_port }}
+          sshid.io user: {{ sshid_username | default(username) }}
           PasswordAuthentication disabled: {{ ssh_disable_password_auth | default(false) | bool }}
           {% if enable_docker | default(true) | bool %}
 
@@ -223,7 +236,7 @@
 
           Memory report:
           {{ memory_report.stdout }}
-          {% if enable_mise | default(false) | bool and mise_version is defined %}
+          {% if enable_mise | default(true) | bool and mise_version is defined %}
 
           Mise version:
           {{ mise_version.stdout_lines | join('\n') }}
