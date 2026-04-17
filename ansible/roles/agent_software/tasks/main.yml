@@ -1,0 +1,70 @@
+---
+- name: Install agent software tools via mise
+  ansible.builtin.command:
+    argv:
+      - "{{ agent_software_mise_binary_path }}"
+      - use
+      - --global
+      - "{{ item.key }}@{{ item.value }}"
+  environment:
+    HOME: /home/{{ username }}
+  become: true
+  become_user: "{{ username }}"
+  changed_when: true
+  loop: "{{ agent_software_mise_tools | dict2items }}"
+
+- name: Ensure mise shims are up to date after installing agent tools
+  ansible.builtin.command:
+    argv:
+      - "{{ agent_software_mise_binary_path }}"
+      - reshim
+  environment:
+    HOME: /home/{{ username }}
+  become: true
+  become_user: "{{ username }}"
+  changed_when: false
+
+- name: Configure cc-switch WebDAV connection
+  ansible.builtin.command:
+    argv:
+      - "{{ agent_software_cc_switch_binary }}"
+      - config
+      - webdav
+      - set
+      - --base-url
+      - "{{ agent_software_cc_switch_webdav_base_url }}"
+      - --username
+      - "{{ agent_software_cc_switch_webdav_username }}"
+      - --password
+      - "{{ agent_software_cc_switch_webdav_password }}"
+      - --enable
+  environment:
+    HOME: /home/{{ username }}
+  become: true
+  become_user: "{{ username }}"
+  changed_when: true
+  no_log: true
+
+- name: Download cc-switch data from WebDAV
+  ansible.builtin.command:
+    argv:
+      - "{{ agent_software_cc_switch_binary }}"
+      - config
+      - webdav
+      - download
+  environment:
+    HOME: /home/{{ username }}
+  become: true
+  become_user: "{{ username }}"
+  changed_when: true
+
+- name: Add ccs alias to .zshrc
+  ansible.builtin.blockinfile:
+    path: /home/{{ username }}/.zshrc
+    create: true
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0644"
+    marker: "# {mark} YewNeedles Agent Software"
+    block: |
+      alias ccs='cc-switch'

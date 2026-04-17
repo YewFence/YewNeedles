@@ -32,7 +32,8 @@
                 '    mise       : ' + (hostvars[_h].enable_mise | default(true) | string),
                 '    zellij     : ' + (hostvars[_h].dev_enable_zellij | default(true) | string),
                 '    docker     : ' + (hostvars[_h].dev_enable_docker | default(false) | string),
-                '    tailscale  : ' + (hostvars[_h].dev_enable_tailscale | default(false) | string)] }}
+                '    tailscale  : ' + (hostvars[_h].dev_enable_tailscale | default(false) | string),
+                '    agent_sw   : ' + (hostvars[_h].dev_enable_agent_software | default(false) | string)] }}
       loop: "{{ groups['devboxes'] | default([]) }}"
       loop_control:
         loop_var: _h
@@ -111,6 +112,11 @@
         name: tailscale
       when: dev_enable_tailscale | default(false) | bool
 
+    - name: Install agent software (claude-code, codex, cc-switch) and configure WebDAV sync
+      ansible.builtin.include_role:
+        name: agent_software
+      when: dev_enable_agent_software | default(false) | bool
+
   post_tasks:
     - name: Read mise version for the summary
       ansible.builtin.command: "{{ mise_managed_binary_path }} --version"
@@ -138,6 +144,7 @@
             zellij: {{ dev_enable_zellij | default(true) | bool }}
             docker_host: {{ dev_enable_docker | default(false) | bool }}
             tailscale: {{ dev_enable_tailscale | default(false) | bool }}
+            agent_software: {{ dev_enable_agent_software | default(false) | bool }}
           Network preset: {{ devbox_network_preset | default('disabled') }}
           Configured backend: {{ devbox_network_backend | default('disabled') }}
           Network backend: {{ devbox_network_applied_backend | default('disabled') }}

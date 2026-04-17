@@ -1,0 +1,17 @@
+---
+agent_software_mise_binary_path: /home/{{ username }}/.local/bin/mise
+
+# Tools to install via mise
+agent_software_mise_tools:
+  "node:codex": "latest"
+  "node:@anthropic-ai/claude-code": "latest"
+  "github:SaladDay/cc-switch-cli": "latest"
+
+# cc-switch WebDAV configuration
+# These should be set via ansible-vault encrypted vars
+agent_software_cc_switch_webdav_base_url: ""
+agent_software_cc_switch_webdav_username: ""
+agent_software_cc_switch_webdav_password: ""
+
+# cc-switch binary path (resolved via mise shim)
+agent_software_cc_switch_binary: /home/{{ username }}/.local/share/mise/shims/cc-switch
