@@ -9,19 +9,16 @@ mise_shell_activation_targets:
     shell: bash
   - path: /home/{{ username }}/.zshrc
     shell: zsh
-mise_tools_common:
-  "fzf": latest
-  "zoxide": latest
-  "bat": latest
-  "ripgrep": latest
-mise_tools_zellij:
-  "zellij": latest
-  "fastfetch": latest
-mise_enable_zellij_tools: false
+mise_tools_base: {}
+mise_tools_dev: {}
+mise_tools_server: {}
+mise_enable_dev_tools: false
+mise_enable_server_tools: false
 mise_tools_extra: {}
 mise_tools: >-
   {{
-    mise_tools_common
-    | combine((mise_tools_zellij if mise_enable_zellij_tools | bool else {}), recursive=True)
+    mise_tools_base
+    | combine((mise_tools_dev if mise_enable_dev_tools | bool else {}), recursive=True)
+    | combine((mise_tools_server if mise_enable_server_tools | bool else {}), recursive=True)
     | combine(mise_tools_extra, recursive=True)
   }}

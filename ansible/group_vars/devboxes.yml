@@ -1,10 +1,14 @@
 ---
-dev_enable_mise: true
+enable_mise: true
 dev_enable_oh_my_zsh: true
 dev_enable_zellij: true
 dev_enable_docker: false
 dev_enable_tailscale: false
-mise_enable_zellij_tools: "{{ dev_enable_zellij | default(true) }}"
+mise_enable_dev_tools: true
+mise_tools_dev:
+  "zellij": latest
+  "gh": latest
+  "github:Apts-1547/gcop-rs": latest
 devbox_network_manage: false
 devbox_network_preset: disabled
 devbox_network_backend: disabled

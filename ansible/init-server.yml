@@ -140,6 +140,11 @@
       ansible.builtin.include_role:
         name: common
 
+    - name: Install mise and render the global tool configuration
+      ansible.builtin.include_role:
+        name: mise
+      when: enable_mise | default(false) | bool
+
     # Keep SSH auth changes isolated so password auth can be disabled in a
     # separate, explicit step after key login is verified.
     - name: Manage SSH auth hardening without forcing lockout-prone defaults
@@ -178,6 +183,13 @@
       when: enable_tailscale | default(true) | bool
 
   post_tasks:
+    - name: Read mise version for the summary
+      ansible.builtin.command: "{{ mise_managed_binary_path }} --version"
+      register: mise_version
+      changed_when: false
+      when:
+        - enable_mise | default(false) | bool
+
     # Collect a short end-of-run summary without assuming every optional role ran.
     - name: Read Docker version for the summary
       ansible.builtin.command: docker -v
@@ -202,6 +214,7 @@
             ufw: {{ enable_ufw | default(true) | bool }}
             docker_host: {{ enable_docker | default(true) | bool }}
             tailscale: {{ enable_tailscale | default(true) | bool }}
+            mise: {{ enable_mise | default(false) | bool }}
           PasswordAuthentication disabled: {{ ssh_disable_password_auth | default(false) | bool }}
           {% if enable_docker | default(true) | bool %}
 
@@ -210,6 +223,11 @@
 
           Memory report:
           {{ memory_report.stdout }}
+          {% if enable_mise | default(false) | bool and mise_version is defined %}
+
+          Mise version:
+          {{ mise_version.stdout_lines | join('\n') }}
+          {% endif %}
           {% if common_user_created | default(false) %}
 
           Temporary password for {{ username }}: {{ common_generated_password }}

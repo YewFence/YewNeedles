@@ -3,3 +3,9 @@
 # Covers transient proxy errors and TLS jitter on all hosts.
 fetch_retries: 3
 fetch_retry_delay: 5
+mise_tools_base:
+  "fzf": latest
+  "zoxide": latest
+  "bat": latest
+  "ripgrep": latest
+  "fastfetch": latest

@@ -8,3 +8,6 @@ swap_size: 2G
 enable_ufw: true
 enable_docker: true
 enable_tailscale: true
+enable_mise: true
+mise_enable_server_tools: true
+mise_tools_server: {}

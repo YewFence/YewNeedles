@@ -29,7 +29,7 @@
                 '  Features',
                 '    qemu_guest_agent : ' + (hostvars[_h].dev_enable_qemu_guest_agent | default(false) | string),
                 '    oh_my_zsh  : ' + (hostvars[_h].dev_enable_oh_my_zsh | default(true) | string),
-                '    mise       : ' + (hostvars[_h].dev_enable_mise | default(true) | string),
+                '    mise       : ' + (hostvars[_h].enable_mise | default(true) | string),
                 '    zellij     : ' + (hostvars[_h].dev_enable_zellij | default(true) | string),
                 '    docker     : ' + (hostvars[_h].dev_enable_docker | default(false) | string),
                 '    tailscale  : ' + (hostvars[_h].dev_enable_tailscale | default(false) | string)] }}
@@ -94,7 +94,7 @@
     - name: Install mise and render the global tool configuration
       ansible.builtin.include_role:
         name: mise
-      when: dev_enable_mise | default(true) | bool
+      when: enable_mise | default(true) | bool
 
     - name: Install and configure zellij for interactive shells
       ansible.builtin.include_role:
@@ -117,7 +117,7 @@
       register: mise_version
       changed_when: false
       when:
-        - dev_enable_mise | default(true) | bool
+        - enable_mise | default(true) | bool
 
     - name: Read Docker version for the summary
       ansible.builtin.command: docker -v
@@ -134,7 +134,7 @@
             common: true
             qemu_guest_agent: {{ dev_enable_qemu_guest_agent | default(false) | bool }}
             oh_my_zsh: {{ dev_enable_oh_my_zsh | default(true) | bool }}
-            mise: {{ dev_enable_mise | default(true) | bool }}
+            mise: {{ enable_mise | default(true) | bool }}
             zellij: {{ dev_enable_zellij | default(true) | bool }}
             docker_host: {{ dev_enable_docker | default(false) | bool }}
             tailscale: {{ dev_enable_tailscale | default(false) | bool }}
@@ -159,7 +159,7 @@
           {{ devbox_network_original_ansible_host }} to
           {{ devbox_network_reconnect_target }}.
           {% endif %}
-          {% if dev_enable_mise | default(true) | bool and mise_version is defined %}
+          {% if enable_mise | default(true) | bool and mise_version is defined %}
 
           Mise version:
           {{ mise_version.stdout_lines | join('\n') }}
