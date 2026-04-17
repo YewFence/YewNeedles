@@ -10,24 +10,33 @@
     HOME: /home/{{ username }}
   become: true
   become_user: "{{ username }}"
+  register: agent_software_mise_install
+  retries: "{{ fetch_retries }}"
+  delay: "{{ fetch_retry_delay }}"
+  until: agent_software_mise_install is not failed
   changed_when: true
   loop: "{{ agent_software_mise_tools | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
 
-- name: Ensure mise shims are up to date after installing agent tools
-  ansible.builtin.command:
-    argv:
-      - "{{ agent_software_mise_binary_path }}"
-      - reshim
+- name: Fix cc-switch binary execute permission (known upstream issue)
+  ansible.builtin.shell:
+    cmd: >-
+      chmod +x "$(find "$({{ agent_software_mise_binary_path }} where {{ agent_software_cc_switch_tool_spec }})" -name cc-switch)"
   environment:
     HOME: /home/{{ username }}
   become: true
   become_user: "{{ username }}"
-  changed_when: false
+  changed_when: true
 
 - name: Configure cc-switch WebDAV connection
   ansible.builtin.command:
     argv:
-      - "{{ agent_software_cc_switch_binary }}"
+      - "{{ agent_software_mise_binary_path }}"
+      - exec
+      - "{{ agent_software_cc_switch_tool_spec }}"
+      - --
+      - cc-switch
       - config
       - webdav
       - set
@@ -43,15 +52,38 @@
   become: true
   become_user: "{{ username }}"
   changed_when: true
-  no_log: true
 
 - name: Download cc-switch data from WebDAV
   ansible.builtin.command:
     argv:
-      - "{{ agent_software_cc_switch_binary }}"
+      - "{{ agent_software_mise_binary_path }}"
+      - exec
+      - "{{ agent_software_cc_switch_tool_spec }}"
+      - --
+      - cc-switch
       - config
       - webdav
       - download
+  environment:
+    HOME: /home/{{ username }}
+  become: true
+  become_user: "{{ username }}"
+  register: agent_software_webdav_download
+  retries: "{{ fetch_retries }}"
+  delay: "{{ fetch_retry_delay }}"
+  until: agent_software_webdav_download is not failed
+  changed_when: true
+- name: Enable cc-switch Proxy
+  ansible.builtin.command:
+    argv:
+      - "{{ agent_software_mise_binary_path }}"
+      - exec
+      - "{{ agent_software_cc_switch_tool_spec }}"
+      - --
+      - cc-switch
+      - config
+      - proxy
+      - --enable
   environment:
     HOME: /home/{{ username }}
   become: true
