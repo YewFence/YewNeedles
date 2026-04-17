@@ -102,6 +102,9 @@ all:
         # Optional: install Tailscale on server hosts.
         # enable_tailscale: true
 
+        # Optional: install zsh with autosuggestions and syntax highlighting.
+        # enable_zsh: true
+
         # Optional: keep SSH public key authentication enabled in the generated
         # SSH drop-in. Set to `false` only if another mechanism manages auth.
         # ssh_pubkey_authentication: true

@@ -1,0 +1,49 @@
+---
+- name: Install zsh
+  ansible.builtin.apt:
+    name: "{{ zsh_packages }}"
+    state: present
+    update_cache: true
+
+- name: Resolve the zsh binary path
+  ansible.builtin.command: which zsh
+  register: _zsh_path
+  changed_when: false
+
+- name: Set the managed user login shell to zsh
+  ansible.builtin.user:
+    name: "{{ username }}"
+    shell: "{{ _zsh_path.stdout }}"
+
+- name: Create the plugin directory
+  ansible.builtin.file:
+    path: "{{ zsh_plugin_dir }}"
+    state: directory
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0755"
+
+- name: Clone zsh plugins # noqa: latest[git]
+  ansible.builtin.git:
+    repo: "{{ item.repo }}"
+    dest: "{{ zsh_plugin_dir }}/{{ item.name }}"
+    depth: 1
+  loop: "{{ zsh_plugins }}"
+  loop_control:
+    label: "{{ item.name }}"
+  become: true
+  become_user: "{{ username }}"
+  register: _zsh_plugin_clone
+  retries: "{{ fetch_retries }}"
+  delay: "{{ fetch_retry_delay }}"
+  until: _zsh_plugin_clone is not failed
+
+- name: Write the managed zsh configuration block
+  ansible.builtin.blockinfile:
+    path: "/home/{{ username }}/.zshrc"
+    marker: "# {mark} YewNeedles Zsh"
+    block: "{{ zsh_rc_block }}"
+    create: true
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0644"

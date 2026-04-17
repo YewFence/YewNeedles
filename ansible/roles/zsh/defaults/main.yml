@@ -1,0 +1,28 @@
+---
+zsh_packages:
+  - zsh
+
+zsh_plugin_dir: "/home/{{ username }}/.zsh/plugins"
+
+zsh_plugins:
+  - name: zsh-autosuggestions
+    repo: https://github.com/zsh-users/zsh-autosuggestions
+  - name: zsh-syntax-highlighting
+    repo: https://github.com/zsh-users/zsh-syntax-highlighting
+
+zsh_history_size: 10000
+
+zsh_rc_block: |
+  HISTFILE=~/.zsh_history
+  HISTSIZE={{ zsh_history_size }}
+  SAVEHIST={{ zsh_history_size }}
+  setopt SHARE_HISTORY
+  setopt HIST_IGNORE_DUPS
+  setopt HIST_IGNORE_SPACE
+  setopt AUTO_CD
+  setopt INTERACTIVE_COMMENTS
+
+  autoload -Uz compinit && compinit
+  {% for plugin in zsh_plugins %}
+  source {{ zsh_plugin_dir }}/{{ plugin.name }}/{{ plugin.name }}.zsh
+  {% endfor %}

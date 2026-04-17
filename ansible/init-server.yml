@@ -93,6 +93,7 @@
                 '    ufw               : ' + (hostvars[_h].enable_ufw | default(true) | string),
                 '    docker            : ' + (hostvars[_h].enable_docker | default(true) | string),
                 '    tailscale         : ' + (hostvars[_h].enable_tailscale | default(true) | string),
+                '    zsh               : ' + (hostvars[_h].enable_zsh | default(true) | string),
                 '    mise              : ' + (hostvars[_h].enable_mise | default(true) | string),
                 '',
                 '  Authorized Keys (sshid.io + ' + server_init_repo_authorized_keys_file + ')']
@@ -150,6 +151,11 @@
     - name: Apply the minimal baseline shared by most managed machines
       ansible.builtin.include_role:
         name: common
+
+    - name: Install zsh with lightweight completion and plugins
+      ansible.builtin.include_role:
+        name: zsh
+      when: enable_zsh | default(true) | bool
 
     - name: Install mise and render the global tool configuration
       ansible.builtin.include_role:
@@ -225,6 +231,7 @@
             ufw: {{ enable_ufw | default(true) | bool }}
             docker_host: {{ enable_docker | default(true) | bool }}
             tailscale: {{ enable_tailscale | default(true) | bool }}
+            zsh: {{ enable_zsh | default(true) | bool }}
             mise: {{ enable_mise | default(true) | bool }}
           SSH port: {{ ansible_port }}
           sshid.io user: {{ sshid_username | default(username) }}
