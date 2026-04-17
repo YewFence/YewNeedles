@@ -9,6 +9,11 @@ all:
     # `init-server.yml` and `init-devbox.yml` require this to be set.
     username: yewfence
 
+    # Optional: extra SSH options appended to every Ansible SSH connection.
+    # Default keeps known hosts local to the project directory. Child groups
+    # (e.g., `pve_vms`) override this to disable host-key checking entirely.
+    # ansible_ssh_extra_args: "-o UserKnownHostsFile=./.ssh_known_hosts"
+
     # Optional: sshid.io username used by `init-server.yml` when fetching SSH
     # public keys. Leave unset when it matches `username`, or override per host.
     # sshid_username: yewfence
