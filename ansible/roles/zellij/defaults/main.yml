@@ -4,6 +4,13 @@ zellij_shell_rc_files:
   - /home/{{ username }}/.bashrc
   - /home/{{ username }}/.zshrc
 zellij_autostart_block: |
+  export SSH_AUTH_SOCK_FIXED="$HOME/.ssh/agent_auth_sock"
+  if [[ -n "$SSH_AUTH_SOCK" && "$SSH_AUTH_SOCK" != "$SSH_AUTH_SOCK_FIXED" && -S "$SSH_AUTH_SOCK" ]]; then
+    mkdir -p "$HOME/.ssh" && ln -sf "$SSH_AUTH_SOCK" "$SSH_AUTH_SOCK_FIXED"
+  fi
+  if [[ -S "$SSH_AUTH_SOCK_FIXED" || -L "$SSH_AUTH_SOCK_FIXED" ]]; then
+    export SSH_AUTH_SOCK="$SSH_AUTH_SOCK_FIXED"
+  fi
   if [[ $- == *i* ]]; then
     if command -v zellij >/dev/null 2>&1 && [[ -z "${ZELLIJ:-}" ]]; then
       zellij attach --create {{ zellij_session_name }}
