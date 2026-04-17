@@ -3,6 +3,7 @@ ansible = { version = "latest", pipx_args = "--include-deps", uvx = "false" }
 "pipx:ansible-lint" = "latest"
 
 [env]
+ANSIBLE_CONFIG = "{{config_root}}/ansible/ansible.cfg"
 ANSIBLE_COLLECTIONS_SCAN_SYS_PATH = "true"
 ANSIBLE_LOCAL_TEMP = "{{config_root}}/.ansible/tmp"
 

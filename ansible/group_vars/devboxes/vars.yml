@@ -13,7 +13,7 @@ mise_tools_dev:
   "github:YewFence/ssh-config-manager": latest
   "uv": latest
   "node": lts
-  "laztgit": latest
+  "lazygit": latest
 devbox_network_manage: false
 devbox_network_preset: disabled
 devbox_network_backend: disabled
