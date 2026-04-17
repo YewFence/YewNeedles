@@ -8,7 +8,7 @@
     mode: "0644"
     marker: "# {mark} YewNeedles Shell Aliases"
     block: |
-      {% for item in shell_aliases %}
+      {% for item in shell_aliases_entries %}
       {% if item.enabled | bool %}
       alias {{ item.alias }}
       {% endif %}

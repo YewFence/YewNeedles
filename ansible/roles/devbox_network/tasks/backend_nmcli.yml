@@ -168,7 +168,7 @@
     or (devbox_network_nm_ifupdown_conf is changed)
     or (devbox_network_nm_device_conf is changed)
 
-- name: Reconnect SSH after NetworkManager restart
+- name: Reconnect SSH after NetworkManager restart # noqa: no-handler
   ansible.builtin.include_tasks: reset_connection.yml
   when: devbox_network_nm_restarted is changed
 
@@ -327,7 +327,7 @@
     state: present
   register: devbox_network_nm_profile
 
-- name: Reapply device configuration to activate changes without dropping the link
+- name: Reapply device configuration to activate changes without dropping the link # noqa: no-handler
   ansible.builtin.command:
     argv:
       - nmcli

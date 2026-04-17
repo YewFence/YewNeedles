@@ -30,6 +30,7 @@
   become: true
   become_user: "{{ username }}"
   register: mise_install_result
+  changed_when: mise_install_result.rc == 0
   retries: "{{ fetch_retries }}"
   delay: "{{ fetch_retry_delay }}"
   until: mise_install_result is not failed
