@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+#MISE description="Manage ansible-vault encrypted variable files"
+#USAGE arg "<action>" help="Vault operation" {
+#USAGE   choices "create" "edit" "view" "encrypt" "decrypt"
+#USAGE }
+#USAGE arg "[file]" help="Target file path" default="ansible/group_vars/devboxes_vault.yml"
+
+action="${usage_action:?}"
+file="${usage_file:?}"
+
+if [[ "$action" == "create" && -f "$file" ]]; then
+  echo "Error: $file already exists. Use 'edit' to modify or 'encrypt' to re-encrypt." >&2
+  exit 1
+fi
+
+if [[ "$action" == "create" ]]; then
+  mkdir -p "$(dirname "$file")"
+fi
+
+ansible-vault "$action" "$file"

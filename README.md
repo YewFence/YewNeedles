@@ -32,10 +32,15 @@ ansible-playbook -i ansible/inventory.yml ansible/init-server.yml
 - Oh My Zsh 与常用插件
 - mise 安装、shell 激活与由 Ansible 变量生成的全局 `config.toml`
 - zellij 与自动 attach 配置
+- AI Agent 开发工具：通过 mise 安装 Claude Code、OpenAI Codex 及 cc-switch-cli，并配置 WebDAV 同步
 
 `mise` 角色会渲染远端 `~/.config/mise/config.toml`，默认安装一组通用 CLI。
 当 `dev_enable_zellij: true` 时，会额外把 `zellij` 和 `fastfetch` 写进这份全局配置，
 然后统一执行 `mise install`。
+
+当 `dev_enable_agent_software: true` 时，`agent_software` 角色会用 `mise use --global` 安装
+Claude Code、OpenAI Codex 和 cc-switch-cli，然后配置 cc-switch 的 WebDAV 连接并拉取远端数据。
+WebDAV 凭据（`agent_software_cc_switch_webdav_*`）建议用 `ansible-vault` 加密。
 
 ```bash
 ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml
@@ -175,6 +180,7 @@ ansible/
     mise/
     oh_my_zsh/
     zellij/
+    agent_software/
 ```
 
 ## tools/ 目录
