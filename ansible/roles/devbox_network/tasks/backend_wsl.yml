@@ -18,7 +18,7 @@
     mode: "0644"
 
 - name: Configure WSL to stop regenerating resolv.conf
-  ansible.builtin.ini_file:
+  community.general.ini_file:
     path: "{{ devbox_network_wsl_conf_path }}"
     section: network
     option: generateResolvConf

@@ -27,6 +27,10 @@
     url: "{{ oh_my_zsh_install_script_url }}"
     dest: /tmp/oh-my-zsh-install.sh
     mode: "0755"
+  register: oh_my_zsh_installer_download
+  retries: "{{ fetch_retries }}"
+  delay: "{{ fetch_retry_delay }}"
+  until: oh_my_zsh_installer_download is not failed
   when: not oh_my_zsh_dir.stat.exists
 
 - name: Install Oh My Zsh in unattended mode
@@ -54,6 +58,10 @@
   become: true
   become_user: "{{ username }}"
   loop: "{{ oh_my_zsh_custom_plugins }}"
+  register: oh_my_zsh_plugin_install
+  retries: "{{ fetch_retries }}"
+  delay: "{{ fetch_retry_delay }}"
+  until: oh_my_zsh_plugin_install is not failed
 
 - name: Ensure the ZSH path is declared in .zshrc
   ansible.builtin.lineinfile:

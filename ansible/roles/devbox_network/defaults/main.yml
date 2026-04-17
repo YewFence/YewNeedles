@@ -25,6 +25,7 @@ devbox_network_nm_packages:
 devbox_network_nm_service_name: NetworkManager
 devbox_network_nm_conf_dir: /etc/NetworkManager/conf.d
 devbox_network_nm_ifupdown_conf_path: "{{ devbox_network_nm_conf_dir }}/10-yewneedles-ifupdown-managed.conf"
+devbox_network_nm_managed_device_conf_path: "{{ devbox_network_nm_conf_dir }}/20-yewneedles-managed-device.conf"
 devbox_network_nm_connection_prefix: yewneedles
 devbox_network_activation_async_timeout: 120
 devbox_network_wait_timeout: 180

@@ -1,7 +1,13 @@
 ---
+dev_enable_qemu_guest_agent: true
+
 devbox_network_manage: true
 devbox_network_preset: pve_vm
 devbox_network_backend: nmcli
 devbox_network_gateway: 192.168.8.2
 devbox_network_dns_servers:
   - 192.168.8.2
+
+# PVE VMs are ephemeral — host keys change on reprovision/snapshot restore.
+# Disable strict host key checking so playbooks don't break on key rotation.
+ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"

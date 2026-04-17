@@ -1,5 +1,5 @@
 ---
-- name: Reload NetworkManager
+- name: Restart NetworkManager
   ansible.builtin.service:
     name: "{{ devbox_network_nm_service_name }}"
-    state: reloaded
+    state: restarted

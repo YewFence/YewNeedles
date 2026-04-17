@@ -10,6 +10,10 @@
     url: "{{ docker_host_install_script_url }}"
     dest: /tmp/get-docker.sh
     mode: "0755"
+  register: docker_host_installer_download
+  retries: "{{ fetch_retries }}"
+  delay: "{{ fetch_retry_delay }}"
+  until: docker_host_installer_download is not failed
   when: not docker_host_binary.stat.exists
 
 - name: Install Docker via the official convenience script
