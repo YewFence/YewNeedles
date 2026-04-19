@@ -1,0 +1,43 @@
+---
+komodo_agent_state: present
+
+komodo_agent_image: ghcr.io/moghtech/komodo-periphery:2
+komodo_agent_project_name: komodo-periphery
+komodo_agent_container_name: komodo-periphery
+komodo_agent_project_dir: /opt/komodo-agent
+komodo_agent_compose_file: "{{ komodo_agent_project_dir }}/compose.yml"
+komodo_agent_env_file: "{{ komodo_agent_project_dir }}/.env"
+
+# This path is mounted with the same path inside and outside the container.
+# Keep all Komodo-managed repos, stacks, builds, and bind-mounted app data here.
+komodo_agent_root: /srv/komodo
+komodo_agent_workload_dirs:
+  - "{{ komodo_agent_root }}/repos"
+  - "{{ komodo_agent_root }}/stacks"
+  - "{{ komodo_agent_root }}/builds"
+
+komodo_agent_core_address: ""
+komodo_agent_connect_as: "{{ inventory_hostname }}"
+komodo_agent_onboarding_key: ""
+komodo_agent_core_public_keys: file:/config/keys/core.pub
+
+komodo_agent_disable_terminals: true
+komodo_agent_disable_container_exec: true
+komodo_agent_mount_host_proc: true
+komodo_agent_mount_host_proc_readonly: true
+komodo_agent_include_disk_mounts:
+  - /etc/hostname
+komodo_agent_exclude_disk_mounts: []
+komodo_agent_extra_environment: {}
+
+komodo_agent_pull_image: true
+komodo_agent_remove_orphans: true
+komodo_agent_remove_volumes: false
+
+# Keeps onboarding keys and extra environment values out of Ansible output.
+komodo_agent_env_no_log: true
+
+# `state: absent` stops the container and removes compose/env files. Workload
+# data is retained unless this is explicitly enabled.
+komodo_agent_remove_project_dir: true
+komodo_agent_remove_data: false

@@ -1,0 +1,19 @@
+---
+services:
+  periphery:
+    image: "{{ komodo_agent_image }}"
+    container_name: "{{ komodo_agent_container_name }}"
+    init: true
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - keys:/config/keys
+      - /var/run/docker.sock:/var/run/docker.sock
+{% if komodo_agent_mount_host_proc | bool %}
+      - "/proc:/proc{{ (komodo_agent_mount_host_proc_readonly | bool) | ternary(':ro', '') }}"
+{% endif %}
+      - "{{ komodo_agent_root }}:{{ komodo_agent_root }}"
+
+volumes:
+  keys:

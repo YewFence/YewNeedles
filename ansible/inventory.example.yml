@@ -2,7 +2,8 @@
 # Defaults already live in `ansible/group_vars/*.yml`; this example shows how
 # to override them from inventory when a machine or environment needs something
 # different. Keep platform groups (`wsl`, `pve_vms`) separate from capability
-# groups (`docker_enabled`, `tailscale_enabled`) so host intent stays obvious.
+# groups (`docker_enabled`, `tailscale_enabled`, `komodo_enabled`) so host
+# intent stays obvious.
 all:
   vars:
     # Managed non-root account created or reused on target hosts. Both
@@ -102,6 +103,16 @@ all:
         # Optional: install Tailscale on server hosts.
         # enable_tailscale: true
 
+        # Optional: deploy Komodo Periphery as a Docker Compose project.
+        # Keep this disabled unless the host should be controlled by Komodo.
+        # enable_komodo_agent: false
+
+        # Optional: set to `absent` to stop and remove the Periphery Compose
+        # project. Keep `enable_komodo_agent: true` while uninstalling so the
+        # role still runs. Workload data under `komodo_agent_root` is retained
+        # unless `komodo_agent_remove_data: true` is also set.
+        # komodo_agent_state: present
+
         # Optional: install zsh with autosuggestions and syntax highlighting.
         # enable_zsh: true
 
@@ -170,6 +181,32 @@ all:
         # Disable when operator assignment should be managed manually.
         # tailscale_set_operator: true
 
+        # Optional: Komodo Core address reachable from this VPS. Set this on
+        # hosts in the `komodo_enabled` group. The official Periphery image
+        # accepts hostnames such as `komodo.example.com`.
+        # komodo_agent_core_address: komodo.example.com
+
+        # Optional: Server name/id this Periphery connects as in Komodo.
+        # Defaults to `inventory_hostname`.
+        # komodo_agent_connect_as: "{{ inventory_hostname }}"
+
+        # Optional: onboarding key for first registration. Store real values in
+        # Ansible Vault and clear this after the server exists in Komodo.
+        # komodo_agent_onboarding_key: !vault |
+        #   $ANSIBLE_VAULT;1.1;AES256
+        #   <redacted>
+
+        # Optional: same-path root mounted into the Periphery container. Keep
+        # all Komodo-managed repos, stacks, builds, and bind-mounted app data
+        # inside this tree.
+        # komodo_agent_root: /srv/komodo
+
+        # Optional: mount host `/proc` so Periphery can read host process and
+        # system stats. Keep it read-only unless a future Komodo version
+        # explicitly requires writable procfs access.
+        # komodo_agent_mount_host_proc: true
+        # komodo_agent_mount_host_proc_readonly: true
+
         # Optional: exact swapfile path created by the swap role.
         # swapfile_path: /swapfile
 
@@ -223,6 +260,7 @@ all:
           # Example: disable services that this host does not need.
           # enable_docker: false
           # enable_tailscale: false
+          # enable_komodo_agent: false
 
           # Example: custom Docker daemon configuration for this one host.
           # docker_daemon_config:
@@ -230,6 +268,14 @@ all:
           #   log-opts:
           #     max-size: 20m
           #     max-file: "5"
+
+      children:
+        komodo_enabled:
+          hosts:
+            # Membership in this capability group sets
+            # `enable_komodo_agent: true` and `enable_docker: true` through
+            # `ansible/group_vars/komodo_enabled.yml`.
+            example_vps: {}
 
     devboxes:
       vars:

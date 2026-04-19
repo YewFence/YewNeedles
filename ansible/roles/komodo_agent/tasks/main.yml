@@ -1,0 +1,147 @@
+---
+- name: Validate Komodo agent state
+  ansible.builtin.assert:
+    that:
+      - komodo_agent_state in ['present', 'absent']
+    fail_msg: komodo_agent_state must be either present or absent.
+
+- name: Validate Komodo agent paths
+  ansible.builtin.assert:
+    that:
+      - komodo_agent_project_dir is match('^/')
+      - komodo_agent_root is match('^/')
+      - komodo_agent_root != '/'
+      - komodo_agent_project_dir != '/'
+      - komodo_agent_root != komodo_agent_project_dir
+    fail_msg: >-
+      komodo_agent_root and komodo_agent_project_dir must be distinct absolute
+      paths and neither may be '/'.
+
+- name: Validate Komodo outbound configuration
+  ansible.builtin.assert:
+    that:
+      - komodo_agent_core_address | string | trim | length > 0
+      - komodo_agent_connect_as | string | trim | length > 0
+    fail_msg: >-
+      Define komodo_agent_core_address and komodo_agent_connect_as before
+      enabling the Komodo agent.
+  when: komodo_agent_state == 'present'
+
+- name: Check Docker CLI availability
+  ansible.builtin.command:
+    argv:
+      - docker
+      - version
+      - --format
+      - "{{ '{{' }}.Server.Version{{ '}}' }}"
+  register: komodo_agent_docker_version
+  changed_when: false
+  when: komodo_agent_state == 'present'
+
+- name: Check Docker Compose plugin availability
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - version
+      - --short
+  register: komodo_agent_compose_version
+  changed_when: false
+  when: komodo_agent_state == 'present'
+
+- name: Validate Komodo extra environment variable names
+  ansible.builtin.assert:
+    that:
+      - item.key is match('^[A-Z_][A-Z0-9_]*$')
+    fail_msg: "Invalid Komodo environment variable name: {{ item.key }}"
+  loop: "{{ komodo_agent_extra_environment | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  when: komodo_agent_state == 'present'
+
+- name: Create Komodo workload root
+  ansible.builtin.file:
+    path: "{{ komodo_agent_root }}"
+    state: directory
+    mode: "0755"
+  when: komodo_agent_state == 'present'
+
+- name: Create Komodo workload directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ komodo_agent_workload_dirs }}"
+  when: komodo_agent_state == 'present'
+
+- name: Create Komodo agent project directory
+  ansible.builtin.file:
+    path: "{{ komodo_agent_project_dir }}"
+    state: directory
+    mode: "0750"
+  when: komodo_agent_state == 'present'
+
+- name: Render Komodo Periphery environment
+  ansible.builtin.template:
+    src: periphery.env.j2
+    dest: "{{ komodo_agent_env_file }}"
+    mode: "0600"
+  no_log: "{{ komodo_agent_env_no_log | bool }}"
+  when: komodo_agent_state == 'present'
+
+- name: Render Komodo Periphery compose file
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ komodo_agent_compose_file }}"
+    mode: "0644"
+  when: komodo_agent_state == 'present'
+
+- name: Start Komodo Periphery
+  community.docker.docker_compose_v2:
+    project_src: "{{ komodo_agent_project_dir }}"
+    files:
+      - compose.yml
+    env_files:
+      - .env
+    project_name: "{{ komodo_agent_project_name }}"
+    pull: "{{ (komodo_agent_pull_image | bool) | ternary('always', 'never') }}"
+    remove_orphans: "{{ komodo_agent_remove_orphans | bool }}"
+    state: present
+  when: komodo_agent_state == 'present'
+
+- name: Check existing Komodo compose file
+  ansible.builtin.stat:
+    path: "{{ komodo_agent_compose_file }}"
+  register: komodo_agent_compose_file_state
+  when: komodo_agent_state == 'absent'
+
+- name: Stop Komodo Periphery
+  community.docker.docker_compose_v2:
+    project_src: "{{ komodo_agent_project_dir }}"
+    files:
+      - compose.yml
+    env_files:
+      - .env
+    project_name: "{{ komodo_agent_project_name }}"
+    remove_orphans: "{{ komodo_agent_remove_orphans | bool }}"
+    remove_volumes: "{{ komodo_agent_remove_volumes | bool }}"
+    state: absent
+  when:
+    - komodo_agent_state == 'absent'
+    - komodo_agent_compose_file_state.stat.exists
+
+- name: Remove Komodo agent project directory
+  ansible.builtin.file:
+    path: "{{ komodo_agent_project_dir }}"
+    state: absent
+  when:
+    - komodo_agent_state == 'absent'
+    - komodo_agent_remove_project_dir | bool
+
+- name: Remove Komodo workload data
+  ansible.builtin.file:
+    path: "{{ komodo_agent_root }}"
+    state: absent
+  when:
+    - komodo_agent_state == 'absent'
+    - komodo_agent_remove_data | bool
