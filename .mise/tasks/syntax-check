@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+#MISE description="Run Ansible syntax checks for server and devbox playbooks"
+#USAGE arg "[inventory]" help="Inventory file used for syntax checking" default="ansible/inventory.example.yml"
+
+inventory="${usage_inventory:?}"
+
+ansible-playbook --syntax-check -i "$inventory" ansible/init-server.yml
+ansible-playbook --syntax-check -i "$inventory" ansible/init-devbox.yml
