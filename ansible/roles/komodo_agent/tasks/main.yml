@@ -59,6 +59,38 @@
     label: "{{ item.key }}"
   when: komodo_agent_state == 'present'
 
+- name: Validate Komodo extra volume strings
+  ansible.builtin.assert:
+    that:
+      - item is match('^/[^:]*:/[^:]+(:[^:]+)?$')
+      - (item.split(':') | first) != '/'
+      - (item.split(':') | first) | length > 1
+      - item.split(':')[1] != '/'
+      - item.split(':')[1] | length > 1
+    fail_msg: >-
+      Extra volume strings must use absolute host/container paths and must not
+      mount '/'. Invalid value: {{ item }}
+  loop: "{{ komodo_agent_extra_volumes | select('string') | list }}"
+  when: komodo_agent_state == 'present'
+
+- name: Validate Komodo extra volume objects
+  ansible.builtin.assert:
+    that:
+      - item.source is defined
+      - item.target is defined
+      - item.source is match('^/')
+      - item.target is match('^/')
+      - item.source != '/'
+      - item.target != '/'
+      - (item.read_only | default(false) | type_debug) == 'bool'
+    fail_msg: >-
+      Extra volume objects must define absolute source/target paths, must not
+      mount '/', and read_only must be boolean.
+  loop: "{{ komodo_agent_extra_volumes | reject('string') | list }}"
+  loop_control:
+    label: "{{ item.source | default('missing-source') }}:{{ item.target | default('missing-target') }}"
+  when: komodo_agent_state == 'present'
+
 - name: Create Komodo workload root
   ansible.builtin.file:
     path: "{{ komodo_agent_root }}"

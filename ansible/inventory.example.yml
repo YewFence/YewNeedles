@@ -207,6 +207,15 @@ all:
         # komodo_agent_mount_host_proc: true
         # komodo_agent_mount_host_proc_readonly: true
 
+        # Optional: extra bind mounts for legacy app data that cannot live
+        # under `komodo_agent_root`. Prefer moving Komodo-managed workloads
+        # into `/srv/komodo` before adding broad mounts.
+        # komodo_agent_extra_volumes:
+        #   - source: /opt/example-app
+        #     target: /opt/example-app
+        #     read_only: false
+        #   - /var/log/example-app:/var/log/example-app:ro
+
         # Optional: exact swapfile path created by the swap role.
         # swapfile_path: /swapfile
 

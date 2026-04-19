@@ -25,6 +25,7 @@ komodo_agent_disable_terminals: true
 komodo_agent_disable_container_exec: true
 komodo_agent_mount_host_proc: true
 komodo_agent_mount_host_proc_readonly: true
+komodo_agent_extra_volumes: []
 komodo_agent_include_disk_mounts:
   - /etc/hostname
 komodo_agent_exclude_disk_mounts: []
