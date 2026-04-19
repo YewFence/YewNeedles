@@ -49,6 +49,44 @@
   changed_when: false
   when: komodo_agent_state == 'present'
 
+- name: Inspect Komodo keys volume
+  community.docker.docker_volume_info:
+    name: "{{ komodo_agent_keys_volume_name }}"
+  register: komodo_agent_keys_volume
+  when: komodo_agent_state == 'present'
+
+- name: Check persisted Komodo private key
+  ansible.builtin.stat:
+    path: >-
+      {{ komodo_agent_keys_volume.volume.Mountpoint }}/{{ komodo_agent_private_key_filename }}
+  register: komodo_agent_private_key_file
+  when:
+    - komodo_agent_state == 'present'
+    - komodo_agent_keys_volume.exists
+
+- name: Decide whether Komodo onboarding key is still needed
+  ansible.builtin.set_fact:
+    komodo_agent_use_onboarding_key: >-
+      {{
+        (komodo_agent_onboarding_key | default('', true) | string | trim | length > 0)
+        and not (komodo_agent_private_key_file.stat.exists | default(false))
+      }}
+  when: komodo_agent_state == 'present'
+
+- name: Warn about stale Komodo onboarding key
+  ansible.builtin.debug:
+    msg: >-
+      komodo_agent_onboarding_key is still configured, but the persisted
+      Periphery key already exists at
+      {{ komodo_agent_keys_volume.volume.Mountpoint }}/{{ komodo_agent_private_key_filename }}.
+      The onboarding key will not be injected again. Remove it from
+      inventory/Vault or disable it in Komodo Core when convenient.
+  when:
+    - komodo_agent_state == 'present'
+    - komodo_agent_warn_on_stale_onboarding_key | bool
+    - komodo_agent_onboarding_key | default('', true) | string | trim | length > 0
+    - not (komodo_agent_use_onboarding_key | bool)
+
 - name: Validate Komodo extra environment variable names
   ansible.builtin.assert:
     that:

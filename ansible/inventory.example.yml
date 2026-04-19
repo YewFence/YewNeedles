@@ -191,7 +191,10 @@ all:
         # komodo_agent_connect_as: "{{ inventory_hostname }}"
 
         # Optional: onboarding key for first registration. Store real values in
-        # Ansible Vault and clear this after the server exists in Komodo.
+        # Ansible Vault. The role only injects this until the persisted
+        # Periphery key exists in the container keys volume. Remove it from
+        # Vault/inventory or disable the onboarding key in Komodo Core when
+        # bootstrap is complete.
         # komodo_agent_onboarding_key: !vault |
         #   $ANSIBLE_VAULT;1.1;AES256
         #   <redacted>
