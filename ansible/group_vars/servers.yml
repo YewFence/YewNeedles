@@ -1,4 +1,5 @@
 ---
+enable_ssh_key_management: true
 enable_ssh_hardening: true
 ssh_disable_password_auth: false
 ssh_disable_password_auth_confirmed: false

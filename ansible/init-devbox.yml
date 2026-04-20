@@ -59,8 +59,6 @@
   gather_facts: false
 
   vars:
-    common_manage_root_ssh_key: false
-    common_copy_root_authorized_keys: false
     common_create_temp_password: false
     devbox_enable_zellij_effective: "{{ enable_zellij | default(true) | bool }}"
     devbox_enable_docker_effective: "{{ enable_docker | default(false) | bool }}"

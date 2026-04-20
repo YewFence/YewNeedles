@@ -13,7 +13,8 @@
 
 使用 `ansible/init-server.yml` 初始化 VPS：
 
-- 共享基线：系统升级、基础包、用户、SSH key、Vim 配置
+- 共享基线：系统升级、基础包、用户、Vim 配置
+- SSH key 管理：可选地从 `sshid.io` 和仓库公钥列表生成 `authorized_keys`
 - SSH 加固：显式双开关控制是否关闭密码登录
 - BBR / Swap / UFW / Docker / Tailscale
 
@@ -71,6 +72,14 @@ SSH 密码登录关闭建议分两步做：
 ssh_disable_password_auth: true
 ssh_disable_password_auth_confirmed: true
 ```
+
+如果某些云服务厂商会托管 SSH key，或者不适合让这个仓库改写 `authorized_keys`，可以在 `servers` 组或单机上设置：
+
+```yaml
+enable_ssh_key_management: false
+```
+
+这样 `init-server.yml` 会跳过 `sshid.io` 拉取、仓库公钥合并，以及 root 和目标用户的 `authorized_keys` 覆盖。
 
 ## Ansible 常见用法
 
@@ -171,6 +180,7 @@ ansible/
   inventory.example.yml
   roles/
     common/
+    ssh_key_management/
     ssh_hardening/
     bbr/
     swapfile/

@@ -78,6 +78,11 @@ all:
         # Keep this enabled unless SSH is managed outside this repository.
         # enable_ssh_hardening: true
 
+        # Optional: manage `authorized_keys` from this repository during server
+        # bootstrap. Set to `false` when your cloud provider or another system
+        # owns SSH key injection and local key-file edits should be avoided.
+        # enable_ssh_key_management: true
+
         # Optional: disable SSH password login. Follow the staged rollout in
         # `AGENTS.md`: first confirm key login from a second session, then set
         # both this variable and `ssh_disable_password_auth_confirmed` to true.
@@ -137,13 +142,22 @@ all:
         # Optional: exact SSH drop-in path managed by the hardening role.
         # ssh_dropin_file: /etc/ssh/sshd_config.d/99-yewneedles-auth.conf
 
+        # Optional: fetch one SSH public key from sshid.io for each host and
+        # merge it into the managed `authorized_keys` payload.
+        # ssh_key_management_fetch_sshid_keys: true
+
+        # Optional: repository file merged into the managed `authorized_keys`
+        # payload for server bootstrap. Leave it at the default unless you keep
+        # the shared key list somewhere else.
+        # ssh_key_management_repo_authorized_keys_file: "{{ playbook_dir }}/files/server_authorized_keys.pub"
+
         # Optional: manage `/root/.ssh/authorized_keys` from the combined
         # sshid.io and repository key set during server bootstrap.
-        # common_manage_root_ssh_key: true
+        # ssh_key_management_manage_root_authorized_keys: true
 
         # Optional: copy the same authorized_keys payload to `username`.
         # Disable when the managed user should maintain its own SSH keys.
-        # common_copy_root_authorized_keys: true
+        # ssh_key_management_copy_authorized_keys_to_user: true
 
         # Optional: generate a one-time sudo password when the user account is
         # created for the first time. Disable in key-only environments.

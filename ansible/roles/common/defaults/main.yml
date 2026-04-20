@@ -11,9 +11,6 @@ common_packages:
 
 common_upgrade_system: true
 common_manage_user: true
-common_manage_root_ssh_key: true
-common_copy_root_authorized_keys: true
-common_authorized_keys_content: ""
 common_manage_vimrc: true
 common_create_temp_password: true
 common_user_shell: /bin/bash

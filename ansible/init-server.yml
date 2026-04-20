@@ -3,73 +3,12 @@
   hosts: localhost
   connection: local
   gather_facts: false
-  vars:
-    server_init_repo_authorized_keys_file: "{{ playbook_dir }}/files/server_authorized_keys.pub"
 
   tasks:
-    - name: Read the repository-managed SSH public keys
-      ansible.builtin.set_fact:
-        server_init_repo_authorized_keys_content: >-
-          {{ lookup('ansible.builtin.file', server_init_repo_authorized_keys_file) }}
-      changed_when: false
-
-    - name: Fetch the sshid.io key for each server from localhost
-      ansible.builtin.command:
-        argv:
-          - curl
-          - -fsSL
-          - >-
-            https://sshid.io/{{
-              hostvars[item].sshid_username
-              | default(hostvars[item].username | default(username | default('')))
-            }}
-      loop: "{{ groups['servers'] | default([]) }}"
-      register: server_init_sshid_fetch
-      changed_when: false
-
-    - name: Fail when sshid.io returns an empty key
-      ansible.builtin.assert:
-        that:
-          - item.stdout | trim | length > 0
-        fail_msg: >-
-          sshid.io returned an empty key for
-          {{
-            hostvars[item.item].sshid_username
-            | default(hostvars[item.item].username | default(username | default('UNSET')))
-          }}.
-      loop: "{{ server_init_sshid_fetch.results }}"
-      loop_control:
-        label: "{{ item.item }}"
-
-    - name: Build the authorized_keys payload for each server
-      ansible.builtin.set_fact:
-        server_init_authorized_keys_map: >-
-          {{
-            server_init_authorized_keys_map | default({}) |
-            combine({
-              item.item: (
-                (
-                  item.stdout.splitlines()
-                  + server_init_repo_authorized_keys_content.splitlines()
-                )
-                | map('trim')
-                | reject('equalto', '')
-                | unique
-                | join('\n')
-              )
-            })
-          }}
-      loop: "{{ server_init_sshid_fetch.results }}"
-      changed_when: false
-
-    - name: Fail when the combined authorized_keys payload is empty
-      ansible.builtin.assert:
-        that:
-          - server_init_authorized_keys_map[item] | default('') | trim | length > 0
-        fail_msg: "The combined authorized_keys payload is empty for {{ item }}."
-      loop: "{{ groups['servers'] | default([]) }}"
-      loop_control:
-        label: "{{ item }}"
+    - name: Prepare SSH key management inputs on localhost
+      ansible.builtin.include_role:
+        name: ssh_key_management
+        tasks_from: prepare
 
     - name: Build preview lines for each host
       ansible.builtin.set_fact:
@@ -85,6 +24,7 @@
                 '  sshid_username     : ' + (hostvars[_h].sshid_username | default(hostvars[_h].username | default(username | default('UNSET'))) | string),
                 '',
                 '  Features',
+                '    ssh_key_management: ' + (hostvars[_h].enable_ssh_key_management | default(true) | string),
                 '    ssh_hardening     : ' + (hostvars[_h].enable_ssh_hardening | default(true) | string),
                 '    ssh_disable_pw    : ' + (hostvars[_h].ssh_disable_password_auth | default(false) | string),
                 '    bbr               : ' + (hostvars[_h].enable_bbr | default(true) | string),
@@ -97,10 +37,16 @@
                 '    komodo_state      : ' + (hostvars[_h].komodo_agent_state | default('present') | string),
                 '    komodo_core       : ' + (hostvars[_h].komodo_agent_core_address | default('UNSET') | string),
                 '    zsh               : ' + (hostvars[_h].enable_zsh | default(true) | string),
-                '    mise              : ' + (hostvars[_h].enable_mise | default(true) | string),
-                '',
-                '  Authorized Keys (sshid.io + ' + server_init_repo_authorized_keys_file + ')']
-             + (server_init_authorized_keys_map[_h].split('\n') | map('regex_replace', '^', '    ') | list) }}
+                '    mise              : ' + (hostvars[_h].enable_mise | default(true) | string)]
+             + (
+               ['',
+                '  Authorized Keys (sshid.io + ' + ssh_key_management_repo_authorized_keys_file + ')']
+               + (ssh_key_management_authorized_keys_map[_h].split('\n') | map('regex_replace', '^', '    ') | list)
+               if (hostvars[_h].enable_ssh_key_management | default(true) | bool)
+               else ['',
+                     '  Authorized Keys',
+                     '    Managed externally or disabled in this repo.']
+             ) }}
       loop: "{{ groups['servers'] | default([]) }}"
       loop_control:
         loop_var: _h
@@ -125,11 +71,9 @@
   become: true
   gather_facts: false
   vars:
-    common_manage_root_ssh_key: true
-    common_copy_root_authorized_keys: true
     common_create_temp_password: true
-    common_authorized_keys_content: >-
-      {{ hostvars['localhost'].server_init_authorized_keys_map[inventory_hostname] | default('') }}
+    ssh_key_management_authorized_keys_content: >-
+      {{ hostvars['localhost'].ssh_key_management_authorized_keys_map[inventory_hostname] | default('') }}
 
   pre_tasks:
     # Fail before any remote changes if the required connection and user vars are
@@ -154,6 +98,11 @@
     - name: Apply the minimal baseline shared by most managed machines
       ansible.builtin.include_role:
         name: common
+
+    - name: Manage authorized_keys for hosts that opt into repository SSH key management
+      ansible.builtin.include_role:
+        name: ssh_key_management
+      when: enable_ssh_key_management | default(true) | bool
 
     - name: Install zsh with lightweight completion and plugins
       ansible.builtin.include_role:
@@ -243,6 +192,7 @@
           Initialization finished for {{ inventory_hostname }}.
           Enabled roles:
             common: true
+            ssh_key_management: {{ enable_ssh_key_management | default(true) | bool }}
             ssh_hardening: {{ enable_ssh_hardening | default(true) | bool }}
             bbr: {{ enable_bbr | default(true) | bool }}
             swapfile: {{ enable_swap | default(true) | bool }}
@@ -253,7 +203,7 @@
             zsh: {{ enable_zsh | default(true) | bool }}
             mise: {{ enable_mise | default(true) | bool }}
           SSH port: {{ ansible_port }}
-          sshid.io user: {{ sshid_username | default(username) }}
+          sshid.io user: {{ sshid_username | default(username) if (enable_ssh_key_management | default(true) | bool) else 'disabled' }}
           PasswordAuthentication disabled: {{ ssh_disable_password_auth | default(false) | bool }}
           {% if enable_docker | default(true) | bool %}
 

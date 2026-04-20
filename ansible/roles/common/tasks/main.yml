@@ -36,31 +36,6 @@
   changed_when: false
   when: common_manage_user | bool
 
-# The authorized_keys payload is prepared locally so the operator can confirm
-# the exact keys before anything on the server is overwritten.
-- name: Ensure root SSH directory exists
-  ansible.builtin.file:
-    path: /root/.ssh
-    state: directory
-    mode: "0700"
-  when: common_manage_root_ssh_key | bool
-
-- name: Require prepared authorized_keys content when SSH keys are managed
-  ansible.builtin.assert:
-    that:
-      - common_authorized_keys_content | trim | length > 0
-    fail_msg: >-
-      Provide common_authorized_keys_content before managing authorized_keys.
-  when:
-    - common_manage_root_ssh_key | bool or common_copy_root_authorized_keys | bool
-
-- name: Overwrite root authorized_keys with the prepared keys
-  ansible.builtin.copy:
-    dest: /root/.ssh/authorized_keys
-    mode: "0600"
-    content: "{{ common_authorized_keys_content | trim ~ '\n' }}"
-  when: common_manage_root_ssh_key | bool
-
 # Keep user creation independent from Docker/Tailscale so `common` stays generic.
 - name: Ensure the managed user exists
   ansible.builtin.user:
@@ -70,39 +45,6 @@
     groups: "{{ common_user_groups }}"
     append: true
   when: common_manage_user | bool
-
-- name: Ensure the managed user SSH directory exists
-  ansible.builtin.file:
-    path: /home/{{ username }}/.ssh
-    state: directory
-    owner: "{{ username }}"
-    group: "{{ username }}"
-    mode: "0700"
-  when: common_manage_user | bool
-
-- name: Overwrite the managed user authorized_keys with the prepared keys
-  ansible.builtin.copy:
-    dest: /home/{{ username }}/.ssh/authorized_keys
-    owner: "{{ username }}"
-    group: "{{ username }}"
-    mode: "0600"
-    content: "{{ common_authorized_keys_content | trim ~ '\n' }}"
-  when:
-    - common_manage_user | bool
-    - common_copy_root_authorized_keys | bool
-
-- name: Create an empty managed user authorized_keys file when not copying keys
-  ansible.builtin.copy:
-    dest: /home/{{ username }}/.ssh/authorized_keys
-    content: ""
-    owner: "{{ username }}"
-    group: "{{ username }}"
-    mode: "0600"
-    force: false
-  when:
-    - common_manage_user | bool
-    - not common_copy_root_authorized_keys | bool
-
 
 - name: Generate a temporary password for a newly created user
   ansible.builtin.command: openssl rand -base64 12

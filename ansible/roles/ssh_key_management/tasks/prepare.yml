@@ -1,0 +1,106 @@
+---
+- name: Initialize SSH key management preparation facts
+  ansible.builtin.set_fact:
+    ssh_key_management_enabled_hosts: []
+    ssh_key_management_sshid_keys_map: {}
+    ssh_key_management_authorized_keys_map: {}
+  changed_when: false
+
+- name: Record server hosts that manage SSH keys through this repository
+  ansible.builtin.set_fact:
+    ssh_key_management_enabled_hosts: "{{ ssh_key_management_enabled_hosts + [item] }}"
+  loop: "{{ groups['servers'] | default([]) }}"
+  loop_control:
+    label: "{{ item }}"
+  when: hostvars[item].enable_ssh_key_management | default(true) | bool
+  changed_when: false
+
+- name: Read the repository-managed SSH public keys
+  ansible.builtin.set_fact:
+    ssh_key_management_repo_authorized_keys_content: >-
+      {{ lookup('ansible.builtin.file', ssh_key_management_repo_authorized_keys_file) }}
+  changed_when: false
+  when: ssh_key_management_enabled_hosts | length > 0
+
+- name: Fetch the sshid.io key for each managed server from localhost
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -fsSL
+      - >-
+        https://sshid.io/{{
+          hostvars[item].sshid_username
+          | default(hostvars[item].username | default(username | default('')))
+        }}
+  loop: "{{ ssh_key_management_enabled_hosts }}"
+  loop_control:
+    label: "{{ item }}"
+  register: ssh_key_management_sshid_fetch
+  changed_when: false
+  when:
+    - ssh_key_management_enabled_hosts | length > 0
+    - hostvars[item].ssh_key_management_fetch_sshid_keys | default(true) | bool
+
+- name: Fail when sshid.io returns an empty key
+  ansible.builtin.assert:
+    that:
+      - item.stdout | trim | length > 0
+    fail_msg: >-
+      sshid.io returned an empty key for
+      {{
+        hostvars[item.item].sshid_username
+        | default(hostvars[item.item].username | default(username | default('UNSET')))
+      }}.
+  loop: "{{ ssh_key_management_sshid_fetch.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: not (item.skipped | default(false))
+
+- name: Build the sshid.io key map
+  ansible.builtin.set_fact:
+    ssh_key_management_sshid_keys_map: >-
+      {{
+        ssh_key_management_sshid_keys_map |
+        combine({ item.item: item.stdout | trim })
+      }}
+  loop: "{{ ssh_key_management_sshid_fetch.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  changed_when: false
+  when: not (item.skipped | default(false))
+
+- name: Build the authorized_keys payload for each managed server
+  ansible.builtin.set_fact:
+    ssh_key_management_authorized_keys_map: >-
+      {{
+        ssh_key_management_authorized_keys_map |
+        combine({
+          item: (
+            (
+              [ssh_key_management_sshid_keys_map[item] | default('')]
+              + ssh_key_management_repo_authorized_keys_content.splitlines()
+            )
+            | map('trim')
+            | reject('equalto', '')
+            | unique
+            | join('\n')
+          )
+        })
+      }}
+  loop: "{{ ssh_key_management_enabled_hosts }}"
+  loop_control:
+    label: "{{ item }}"
+  changed_when: false
+
+- name: Fail when the combined authorized_keys payload is empty
+  ansible.builtin.assert:
+    that:
+      - ssh_key_management_authorized_keys_map[item] | default('') | trim | length > 0
+    fail_msg: "The combined authorized_keys payload is empty for {{ item }}."
+  loop: "{{ ssh_key_management_enabled_hosts }}"
+  loop_control:
+    label: "{{ item }}"
+  when:
+    - hostvars[item].ssh_key_management_manage_root_authorized_keys | default(hostvars[item].common_manage_root_ssh_key | default(true)) | bool
+      or
+      hostvars[item].ssh_key_management_copy_authorized_keys_to_user | default(hostvars[item].common_copy_root_authorized_keys | default(true)) | bool
