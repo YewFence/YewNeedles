@@ -9,6 +9,8 @@ swap_size: 2G
 enable_ufw: true
 enable_docker: true
 enable_tailscale: true
+tailscale_set_default_config:
+  ssh: true
 enable_komodo_agent: false
 enable_zsh: true
 enable_mise: true

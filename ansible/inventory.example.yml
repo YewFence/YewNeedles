@@ -198,6 +198,24 @@ all:
         # Disable when operator assignment should be managed manually.
         # tailscale_set_operator: true
 
+        # Optional: manage extra `tailscale set` preferences declaratively.
+        # Use snake_case keys that map to CLI flags, for example:
+        # tailscale_set_config:
+        #   accept_dns: false
+        #   ssh: true
+        #   advertise_routes:
+        #     - 10.0.0.0/24
+        #     - 192.168.0.0/24
+        #   exit_node: auto:any
+        # Use empty strings or empty lists when the CLI expects clearing a
+        # value, such as `exit_node: ""` or `advertise_routes: []`.
+        # tailscale_set_config: {}
+
+        # Optional: append raw `tailscale set` flags verbatim when testing new
+        # CLI features before this role adds a first-class key.
+        # tailscale_set_extra_args:
+        #   - --accept-risk=lose-ssh
+
         # Optional: Komodo Core address reachable from this VPS. Set this on
         # hosts in the `komodo_enabled` group. The official Periphery image
         # accepts hostnames such as `komodo.example.com`.
@@ -424,6 +442,15 @@ all:
         # Optional: run `tailscale set --operator={{ username }}` on devboxes
         # after Tailscale is installed.
         # tailscale_set_operator: true
+
+        # Optional: manage extra `tailscale set` preferences declaratively.
+        # tailscale_set_config:
+        #   accept_routes: true
+        #   ssh: true
+        #   advertise_routes:
+        #     - 192.168.8.0/24
+        # tailscale_set_extra_args:
+        #   - --accept-risk=lose-ssh
 
       children:
         wsl:

@@ -9,6 +9,7 @@
       ansible.builtin.include_role:
         name: ssh_key_management
         tasks_from: prepare
+        public: true
 
     - name: Build preview lines for each host
       ansible.builtin.set_fact:

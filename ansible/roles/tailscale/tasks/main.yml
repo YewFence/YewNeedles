@@ -27,10 +27,175 @@
     enabled: true
     state: started
 
-# The operator assignment stays in this role because it only matters when
-# Tailscale is actually being managed.
-- name: Set the Tailscale operator user
-  ansible.builtin.command: tailscale set --operator={{ username }}
-  register: tailscale_operator_result
-  changed_when: "'operator' in (((tailscale_operator_result.stdout | default('')) ~ (tailscale_operator_result.stderr | default(''))) | lower)"
-  when: tailscale_set_operator | bool
+- name: Validate Tailscale set configuration containers
+  ansible.builtin.assert:
+    that:
+      - tailscale_set_default_config is mapping
+      - tailscale_set_config is mapping
+      - tailscale_set_extra_args is sequence
+      - tailscale_set_extra_args is not string
+      - tailscale_set_extra_args is not mapping
+    fail_msg: >-
+      tailscale_set_default_config and tailscale_set_config must be mappings,
+      and tailscale_set_extra_args must be a list of raw tailscale set flags.
+
+- name: Merge legacy and custom Tailscale set configuration
+  ansible.builtin.set_fact:
+    tailscale_effective_set_config: >-
+      {{
+        tailscale_set_default_config
+        | combine(
+            ((tailscale_set_operator | bool) | ternary({"operator": username}, {})),
+            recursive=True
+          )
+        | combine(tailscale_set_config, recursive=True)
+      }}
+    tailscale_set_requested: >-
+      {{
+        (
+          (
+            tailscale_set_default_config
+            | combine(
+                ((tailscale_set_operator | bool) | ternary({"operator": username}, {})),
+                recursive=True
+              )
+            | combine(tailscale_set_config, recursive=True)
+          )
+          | length > 0
+        )
+        or (tailscale_set_extra_args | length > 0)
+      }}
+  changed_when: false
+
+- name: Validate supported Tailscale set keys
+  ansible.builtin.assert:
+    that:
+      - tailscale_unsupported_set_keys | length == 0
+    fail_msg: >-
+      Unsupported tailscale_set_config keys: {{ tailscale_unsupported_set_keys
+      | join(', ') }}. Supported keys: {{ tailscale_supported_set_keys
+      | join(', ') }}.
+  vars:
+    tailscale_supported_set_keys: >-
+      {{ tailscale_set_supported_options | dict2items | map(attribute='key') | list | sort }}
+    tailscale_unsupported_set_keys: >-
+      {{
+        (tailscale_effective_set_config | dict2items | map(attribute='key') | list)
+        | difference(tailscale_supported_set_keys)
+        | sort
+      }}
+
+- name: Validate Tailscale set option values
+  ansible.builtin.assert:
+    that:
+      - tailscale_set_value_valid
+    fail_msg: >-
+      Invalid value for tailscale_set_config.{{ item.key }}. Expected
+      {{ tailscale_set_option.type }}.
+  vars:
+    tailscale_set_option: "{{ tailscale_set_supported_options[item.key] }}"
+    tailscale_set_value_valid: >-
+      {{
+        (tailscale_set_option.type == 'bool' and (item.value | type_debug) == 'bool')
+        or
+        (
+          tailscale_set_option.type == 'scalar'
+          and (
+            item.value is string
+            or (item.value | type_debug) in ['int', 'float']
+          )
+        )
+        or
+        (
+          tailscale_set_option.type == 'csv'
+          and (
+            item.value is string
+            or (
+              item.value is sequence
+              and item.value is not string
+              and item.value is not mapping
+              and (item.value | reject('string') | list | length == 0)
+            )
+          )
+        )
+      }}
+  loop: "{{ tailscale_effective_set_config | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Validate raw Tailscale set flags
+  ansible.builtin.assert:
+    that:
+      - item is string
+      - item | trim | length > 0
+      - item is match('^--')
+    fail_msg: >-
+      tailscale_set_extra_args entries must be non-empty strings starting with
+      '--'. Invalid value: {{ item }}
+  loop: "{{ tailscale_set_extra_args }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Initialize Tailscale set command arguments
+  ansible.builtin.set_fact:
+    tailscale_set_argv:
+      - tailscale
+      - set
+  changed_when: false
+  when: tailscale_set_requested | bool
+
+- name: Append managed Tailscale set flags
+  ansible.builtin.set_fact:
+    tailscale_set_argv: "{{ tailscale_set_argv + [tailscale_set_rendered_flag] }}"
+  vars:
+    tailscale_set_option: "{{ tailscale_set_supported_options[item.key] }}"
+    tailscale_set_rendered_value: >-
+      {%- if tailscale_set_option.type == 'bool' -%}{{ item.value |
+      ternary('true', 'false') }}{%- elif tailscale_set_option.type == 'csv'
+      -%}{{ item.value if item.value is string else (item.value |
+      join(',')) }}{%- else -%}{{ item.value | string }}{%- endif -%}
+    tailscale_set_rendered_flag: >-
+      --{{ tailscale_set_option.flag }}={{ tailscale_set_rendered_value }}
+  loop: "{{ tailscale_effective_set_config | dict2items | sort(attribute='key') }}"
+  loop_control:
+    label: "{{ item.key }}"
+  changed_when: false
+  when: tailscale_set_requested | bool
+
+- name: Append raw Tailscale set flags
+  ansible.builtin.set_fact:
+    tailscale_set_argv: "{{ tailscale_set_argv + tailscale_set_extra_args }}"
+  changed_when: false
+  when: tailscale_set_requested | bool
+
+- name: Read Tailscale prefs before applying configuration
+  ansible.builtin.command:
+    argv:
+      - tailscale
+      - debug
+      - prefs
+  register: tailscale_prefs_before
+  changed_when: false
+  when: tailscale_set_requested | bool
+
+- name: Apply Tailscale configuration
+  ansible.builtin.command:
+    argv: "{{ tailscale_set_argv }}"
+  changed_when: false
+  when: tailscale_set_requested | bool
+
+- name: Read Tailscale prefs after applying configuration
+  ansible.builtin.command:
+    argv:
+      - tailscale
+      - debug
+      - prefs
+  register: tailscale_prefs_after
+  changed_when: false
+  when: tailscale_set_requested | bool
+
+- name: Record whether Tailscale preferences changed
+  ansible.builtin.set_fact:
+    tailscale_prefs_changed: "{{ tailscale_prefs_before.stdout != tailscale_prefs_after.stdout }}"
+  changed_when: tailscale_prefs_before.stdout != tailscale_prefs_after.stdout
+  when: tailscale_set_requested | bool

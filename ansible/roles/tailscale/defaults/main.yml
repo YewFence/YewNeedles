@@ -1,3 +1,76 @@
 ---
 tailscale_install_script_url: https://tailscale.com/install.sh
 tailscale_set_operator: true
+tailscale_set_default_config: {}
+tailscale_set_config: {}
+tailscale_set_extra_args: []
+tailscale_set_supported_options:
+  accept_dns:
+    flag: accept-dns
+    type: bool
+  accept_risk:
+    flag: accept-risk
+    type: csv
+  accept_routes:
+    flag: accept-routes
+    type: bool
+  advertise_connector:
+    flag: advertise-connector
+    type: bool
+  advertise_exit_node:
+    flag: advertise-exit-node
+    type: bool
+  advertise_routes:
+    flag: advertise-routes
+    type: csv
+  auto_update:
+    flag: auto-update
+    type: bool
+  exit_node:
+    flag: exit-node
+    type: scalar
+  exit_node_allow_lan_access:
+    flag: exit-node-allow-lan-access
+    type: bool
+  hostname:
+    flag: hostname
+    type: scalar
+  netfilter_mode:
+    flag: netfilter-mode
+    type: scalar
+  nickname:
+    flag: nickname
+    type: scalar
+  operator:
+    flag: operator
+    type: scalar
+  relay_server_port:
+    flag: relay-server-port
+    type: scalar
+  relay_server_static_endpoints:
+    flag: relay-server-static-endpoints
+    type: csv
+  report_posture:
+    flag: report-posture
+    type: bool
+  shields_up:
+    flag: shields-up
+    type: bool
+  snat_subnet_routes:
+    flag: snat-subnet-routes
+    type: bool
+  ssh:
+    flag: ssh
+    type: bool
+  stateful_filtering:
+    flag: stateful-filtering
+    type: bool
+  sync:
+    flag: sync
+    type: bool
+  update_check:
+    flag: update-check
+    type: bool
+  webclient:
+    flag: webclient
+    type: bool
