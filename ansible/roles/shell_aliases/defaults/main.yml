@@ -1,8 +1,0 @@
----
-shell_aliases_rc_file: /home/{{ username }}/.zshrc
-
-shell_aliases_entries:
-  - alias: ccs='cc-switch'
-    enabled: "{{ dev_enable_agent_software | default(false) }}"
-  - alias: ze='zellij'
-    enabled: "{{ dev_enable_zellij | default(true) }}"

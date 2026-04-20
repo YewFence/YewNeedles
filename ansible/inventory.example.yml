@@ -298,13 +298,16 @@ all:
         # enable_mise: true
 
         # Optional: configure zellij autostart for interactive shells.
-        # dev_enable_zellij: true
+        # enable_zellij: true
 
         # Optional: install Docker on development hosts.
-        # dev_enable_docker: false
+        # enable_docker: false
 
         # Optional: install Tailscale on development hosts.
-        # dev_enable_tailscale: false
+        # enable_tailscale: false
+
+        # Optional: install agent software and related shell aliases.
+        # enable_agent_software: false
 
         # Optional: enable managed gateway and DNS overrides for devboxes.
         # The repo ships preset group defaults in `group_vars/wsl.yml` and
@@ -484,7 +487,7 @@ all:
 
               # Optional: devbox-specific overrides when this machine differs
               # from the rest of the `devboxes` group.
-              # dev_enable_tailscale: true
+              # enable_tailscale: true
               # zellij_session_name: remote
               # Optional: read this host's sudo password from a controller-side
               # environment variable.
@@ -493,13 +496,13 @@ all:
 
         docker_enabled:
           hosts:
-            # Membership in this capability group sets `dev_enable_docker: true`
+            # Membership in this capability group sets `enable_docker: true`
             # through `ansible/group_vars/docker_enabled.yml`.
             example_pve_vm: {}
 
         tailscale_enabled:
           hosts:
             # Membership in this capability group sets
-            # `dev_enable_tailscale: true` through
+            # `enable_tailscale: true` through
             # `ansible/group_vars/tailscale_enabled.yml`.
             example_remote_dev_vm: {}

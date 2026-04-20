@@ -1,10 +1,16 @@
 ---
-enable_mise: true
+# Canonical role toggles use `enable_*` even on devboxes so shared capabilities
+# match the server playbook. Legacy `dev_enable_*` inventory keys still feed
+# these vars until the inventory is fully migrated.
+enable_mise: "{{ dev_enable_mise | default(true) }}"
+enable_zellij: "{{ dev_enable_zellij | default(true) }}"
+enable_docker: "{{ dev_enable_docker | default(false) }}"
+enable_tailscale: "{{ dev_enable_tailscale | default(false) }}"
+enable_agent_software: "{{ dev_enable_agent_software | default(false) }}"
+
+# Keep the `dev_enable_*` prefix for devbox-only features.
 dev_enable_oh_my_zsh: true
-dev_enable_zellij: true
-dev_enable_docker: false
-dev_enable_tailscale: false
-dev_enable_agent_software: false
+
 mise_enable_dev_tools: true
 mise_tools_dev:
   "zellij": latest

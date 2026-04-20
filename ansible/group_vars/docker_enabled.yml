@@ -1,2 +1,2 @@
 ---
-dev_enable_docker: true
+enable_docker: true

@@ -1,2 +1,2 @@
 ---
-dev_enable_tailscale: true
+enable_tailscale: true

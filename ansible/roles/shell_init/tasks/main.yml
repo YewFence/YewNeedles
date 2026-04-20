@@ -13,12 +13,35 @@
       {{ item.eval }}
       {% endif %}
       {% endfor %}
+  when: shell_init_enable_mise | bool
+
+- name: Add shell aliases to {{ shell_init_rc_file }}
+  ansible.builtin.blockinfile:
+    path: "{{ shell_init_rc_file }}"
+    create: true
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0644"
+    marker: "# {mark} YewNeedles Shell Aliases"
+    block: |
+      {% for item in shell_init_aliases %}
+      {% if item.enabled | bool %}
+      alias {{ item.alias }}
+      {% endif %}
+      {% endfor %}
+  when:
+    - shell_init_enable_zellij | bool
+      or shell_init_enable_tailscale | bool
+      or shell_init_enable_agent_software | bool
 
 - name: Ensure the zsh site-functions directory exists
   ansible.builtin.file:
     path: "{{ shell_init_completions_dir }}"
     state: directory
     mode: "0755"
+  when:
+    - shell_init_enable_mise | bool
+      or shell_init_enable_tailscale | bool
 
 - name: Generate zsh completions
   ansible.builtin.command:
@@ -32,7 +55,10 @@
   loop: "{{ shell_init_completions }}"
   loop_control:
     label: "{{ item.name }}"
-  when: item.enabled | bool
+  when:
+    - shell_init_enable_mise | bool
+      or shell_init_enable_tailscale | bool
+    - item.enabled | bool
 
 - name: Install zsh completions
   ansible.builtin.copy:
@@ -42,4 +68,7 @@
   loop: "{{ _shell_init_completion_results.results }}"
   loop_control:
     label: "{{ item.item.name }}"
-  when: item is not skipped
+  when:
+    - shell_init_enable_mise | bool
+      or shell_init_enable_tailscale | bool
+    - item is not skipped

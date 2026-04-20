@@ -1,14 +1,29 @@
 ---
-shell_init_rc_file: /home/{{ username }}/.zshrc
+shell_init_rc_file: "{{ shell_aliases_rc_file | default('/home/' ~ username ~ '/.zshrc') }}"
 shell_init_mise_bin: /home/{{ username }}/.local/bin/mise
+
+shell_init_enable_mise: "{{ enable_mise | default(false) }}"
+shell_init_enable_zellij: "{{ enable_zellij | default(false) }}"
+shell_init_enable_tailscale: "{{ enable_tailscale | default(false) }}"
+shell_init_enable_agent_software: "{{ enable_agent_software | default(false) }}"
 
 shell_init_entries:
   - name: zoxide
     eval: 'eval "$(zoxide init zsh)"'
-    enabled: true
+    enabled: "{{ shell_init_enable_mise }}"
   - name: fzf
     eval: 'eval "$(fzf --zsh)"'
-    enabled: true
+    enabled: "{{ shell_init_enable_mise }}"
+
+shell_init_aliases_default:
+  - alias: ccs='cc-switch'
+    enabled: "{{ shell_init_enable_agent_software }}"
+  - alias: ze='zellij'
+    enabled: "{{ shell_init_enable_zellij }}"
+  - alias: ts='tailscale'
+    enabled: "{{ shell_init_enable_tailscale }}"
+
+shell_init_aliases: "{{ shell_aliases_entries | default(shell_init_aliases_default) }}"
 
 shell_init_completions_dir: /usr/local/share/zsh/site-functions
 
@@ -16,8 +31,12 @@ shell_init_completions:
   - name: mise
     cmd: "{{ shell_init_mise_bin }} completion zsh"
     dest: "_mise"
-    enabled: true
+    enabled: "{{ shell_init_enable_mise }}"
   - name: gh
     cmd: "{{ shell_init_mise_bin }} exec -- gh completion -s zsh"
     dest: "_gh"
-    enabled: "{{ mise_enable_dev_tools | default(false) }}"
+    enabled: "{{ shell_init_enable_mise | bool and mise_enable_dev_tools | default(false) | bool }}"
+  - name: tailscale
+    cmd: "tailscale completion zsh"
+    dest: "_tailscale"
+    enabled: "{{ shell_init_enable_tailscale }}"

@@ -30,10 +30,10 @@
                 '    qemu_guest_agent : ' + (hostvars[_h].dev_enable_qemu_guest_agent | default(false) | string),
                 '    oh_my_zsh  : ' + (hostvars[_h].dev_enable_oh_my_zsh | default(true) | string),
                 '    mise       : ' + (hostvars[_h].enable_mise | default(true) | string),
-                '    zellij     : ' + (hostvars[_h].dev_enable_zellij | default(true) | string),
-                '    docker     : ' + (hostvars[_h].dev_enable_docker | default(false) | string),
-                '    tailscale  : ' + (hostvars[_h].dev_enable_tailscale | default(false) | string),
-                '    agent_sw   : ' + (hostvars[_h].dev_enable_agent_software | default(false) | string)] }}
+                '    zellij     : ' + (hostvars[_h].enable_zellij | default(true) | string),
+                '    docker     : ' + (hostvars[_h].enable_docker | default(false) | string),
+                '    tailscale  : ' + (hostvars[_h].enable_tailscale | default(false) | string),
+                '    agent_sw   : ' + (hostvars[_h].enable_agent_software | default(false) | string)] }}
       loop: "{{ groups['devboxes'] | default([]) }}"
       loop_control:
         loop_var: _h
@@ -62,6 +62,10 @@
     common_manage_root_ssh_key: false
     common_copy_root_authorized_keys: false
     common_create_temp_password: false
+    devbox_enable_zellij_effective: "{{ enable_zellij | default(true) | bool }}"
+    devbox_enable_docker_effective: "{{ enable_docker | default(false) | bool }}"
+    devbox_enable_tailscale_effective: "{{ enable_tailscale | default(false) | bool }}"
+    devbox_enable_agent_software_effective: "{{ enable_agent_software | default(false) | bool }}"
 
   pre_tasks:
     - name: Validate required variables
@@ -97,34 +101,39 @@
         name: mise
       when: enable_mise | default(true) | bool
 
-    - name: Initialize shell integrations for mise-managed tools
-      ansible.builtin.include_role:
-        name: shell_init
-      when: enable_mise | default(true) | bool
-
     - name: Install and configure zellij for interactive shells
       ansible.builtin.include_role:
         name: zellij
-      when: dev_enable_zellij | default(true) | bool
+      when: devbox_enable_zellij_effective | bool
 
     - name: Install Docker on development hosts that need container workloads
       ansible.builtin.include_role:
         name: docker_host
-      when: dev_enable_docker | default(false) | bool
+      when: devbox_enable_docker_effective | bool
 
     - name: Install and configure Tailscale on development hosts that need overlay access
       ansible.builtin.include_role:
         name: tailscale
-      when: dev_enable_tailscale | default(false) | bool
+      when: devbox_enable_tailscale_effective | bool
 
     - name: Install agent software (claude-code, codex, cc-switch) and configure WebDAV sync
       ansible.builtin.include_role:
         name: agent_software
-      when: dev_enable_agent_software | default(false) | bool
+      when: devbox_enable_agent_software_effective | bool
 
-    - name: Configure shell aliases for installed tools
+    - name: Render shell initialization, aliases, and completions
       ansible.builtin.include_role:
-        name: shell_aliases
+        name: shell_init
+      vars:
+        shell_init_enable_mise: "{{ enable_mise | default(true) | bool }}"
+        shell_init_enable_zellij: "{{ devbox_enable_zellij_effective | bool }}"
+        shell_init_enable_tailscale: "{{ devbox_enable_tailscale_effective | bool }}"
+        shell_init_enable_agent_software: "{{ devbox_enable_agent_software_effective | bool }}"
+      when:
+        - enable_mise | default(true) | bool
+          or devbox_enable_zellij_effective | bool
+          or devbox_enable_tailscale_effective | bool
+          or devbox_enable_agent_software_effective | bool
 
   post_tasks:
     - name: Read mise version for the summary
@@ -138,7 +147,7 @@
       ansible.builtin.command: docker -v
       register: docker_version
       changed_when: false
-      when: dev_enable_docker | default(false) | bool
+      when: devbox_enable_docker_effective | bool
 
     - name: Print the final summary
       ansible.builtin.debug:
@@ -150,10 +159,10 @@
             qemu_guest_agent: {{ dev_enable_qemu_guest_agent | default(false) | bool }}
             oh_my_zsh: {{ dev_enable_oh_my_zsh | default(true) | bool }}
             mise: {{ enable_mise | default(true) | bool }}
-            zellij: {{ dev_enable_zellij | default(true) | bool }}
-            docker_host: {{ dev_enable_docker | default(false) | bool }}
-            tailscale: {{ dev_enable_tailscale | default(false) | bool }}
-            agent_software: {{ dev_enable_agent_software | default(false) | bool }}
+            zellij: {{ devbox_enable_zellij_effective | bool }}
+            docker_host: {{ devbox_enable_docker_effective | bool }}
+            tailscale: {{ devbox_enable_tailscale_effective | bool }}
+            agent_software: {{ devbox_enable_agent_software_effective | bool }}
           Network preset: {{ devbox_network_preset | default('disabled') }}
           Configured backend: {{ devbox_network_backend | default('disabled') }}
           Network backend: {{ devbox_network_applied_backend | default('disabled') }}
@@ -180,7 +189,7 @@
           Mise version:
           {{ mise_version.stdout_lines | join('\n') }}
           {% endif %}
-          {% if dev_enable_docker | default(false) | bool and docker_version is defined %}
+          {% if devbox_enable_docker_effective | bool and docker_version is defined %}
 
           Docker version: {{ docker_version.stdout }}
           {% endif %}
