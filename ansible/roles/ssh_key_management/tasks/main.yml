@@ -1,13 +1,4 @@
 ---
-# The authorized_keys payload is prepared on localhost so the operator can
-# confirm the exact keys before anything on the server is overwritten.
-- name: Ensure root SSH directory exists
-  ansible.builtin.file:
-    path: /root/.ssh
-    state: directory
-    mode: "0700"
-  when: ssh_key_management_manage_root_authorized_keys | bool
-
 - name: Require prepared authorized_keys content when SSH keys are managed
   ansible.builtin.assert:
     that:
@@ -19,14 +10,24 @@
     - ssh_key_management_manage_root_authorized_keys | bool
       or ssh_key_management_copy_authorized_keys_to_user | bool
 
-- name: Overwrite root authorized_keys with the prepared keys
-  ansible.builtin.copy:
-    dest: /root/.ssh/authorized_keys
-    mode: "0600"
-    content: "{{ ssh_key_management_authorized_keys_content | trim ~ '\n' }}"
+- name: Manage root authorized_keys with the prepared keys
+  ansible.posix.authorized_key:
+    user: root
+    key: "{{ ssh_key_management_authorized_keys_content | trim }}"
+    state: present
+    exclusive: true
+    manage_dir: true
   when: ssh_key_management_manage_root_authorized_keys | bool
 
-- name: Ensure the managed user SSH directory exists
+- name: Enforce root authorized_keys permissions
+  ansible.builtin.file:
+    path: /root/.ssh/authorized_keys
+    owner: root
+    group: root
+    mode: "0600"
+  when: ssh_key_management_manage_root_authorized_keys | bool
+
+- name: Ensure the managed user SSH directory permissions stay strict
   ansible.builtin.file:
     path: /home/{{ username }}/.ssh
     state: directory
@@ -37,13 +38,23 @@
     - ssh_key_management_manage_user | bool
     - ssh_key_management_copy_authorized_keys_to_user | bool
 
-- name: Overwrite the managed user authorized_keys with the prepared keys
-  ansible.builtin.copy:
-    dest: /home/{{ username }}/.ssh/authorized_keys
+- name: Manage the target user authorized_keys with the prepared keys
+  ansible.posix.authorized_key:
+    user: "{{ username }}"
+    key: "{{ ssh_key_management_authorized_keys_content | trim }}"
+    state: present
+    exclusive: true
+    manage_dir: false
+  when:
+    - ssh_key_management_manage_user | bool
+    - ssh_key_management_copy_authorized_keys_to_user | bool
+
+- name: Enforce the target user authorized_keys permissions
+  ansible.builtin.file:
+    path: /home/{{ username }}/.ssh/authorized_keys
     owner: "{{ username }}"
     group: "{{ username }}"
     mode: "0600"
-    content: "{{ ssh_key_management_authorized_keys_content | trim ~ '\n' }}"
   when:
     - ssh_key_management_manage_user | bool
     - ssh_key_management_copy_authorized_keys_to_user | bool
