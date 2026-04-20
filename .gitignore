@@ -31,3 +31,9 @@ ansible.log
 
 # Other Local conf
 mise.local.toml
+
+# YewSeal - Decrypted configuration files
+ansible/inventory.toml
+
+# YewSeal - Age private keys
+.age/keys.txt

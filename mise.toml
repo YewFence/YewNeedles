@@ -1,5 +1,6 @@
 [tools]
 ansible = { version = "latest", pipx_args = "--include-deps", uvx = "false" }
+"github:YewFence/YewSeal" = "latest"
 "pipx:ansible-lint" = "latest"
 
 [env]

@@ -1,0 +1,21 @@
+# YewSeal 配置文件
+#
+# 配置优先级：
+# 1. 命令行参数（最高优先级）
+# 2. 环境变量
+# 3. 此配置文件
+# 4. 默认值（最低优先级）
+#
+# 所有敏感文件都统一写在 [[encryption.files]] 里：
+# - plaintext 表示明文文件
+# - encrypted 表示加密文件
+
+[encryption]
+
+[[encryption.files]]
+plaintext = "ansible/inventory.yml"
+encrypted = "ansible/inventory.enc.yml"
+
+[key]
+file_path = ".age/keys.txt"
+public_key = "age1cwzdda347rgj5fzfp0ng3f0klfa99rj3j4jxeg9559v47auzycrqnly46n"

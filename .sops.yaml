@@ -1,0 +1,3 @@
+creation_rules:
+    - path_regex: ^ansible/inventory\.enc\.yml$
+      age: age1cwzdda347rgj5fzfp0ng3f0klfa99rj3j4jxeg9559v47auzycrqnly46n
