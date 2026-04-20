@@ -4,7 +4,9 @@
 fetch_retries: 3
 fetch_retry_delay: 5
 
-ansible_ssh_extra_args: "-o UserKnownHostsFile=./.ssh_known_hosts"
+ansible_ssh_extra_args: >-
+  -o UserKnownHostsFile={{ inventory_dir }}/.ssh_known_hosts
+  -o StrictHostKeyChecking=accept-new
 mise_tools_base:
   "fzf": latest
   "zoxide": latest

@@ -10,3 +10,5 @@ ANSIBLE_LOCAL_TEMP = "{{config_root}}/.ansible/tmp"
 
 [tasks.play-dev]
 run = "ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml"
+[tasks.play-server]
+run = "ansible-playbook -i ansible/inventory.yml ansible/init-server.yml"

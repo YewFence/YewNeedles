@@ -144,7 +144,7 @@
           - (ansible_port | int) > 0
           - (ansible_port | int) < 65536
           - (not (enable_swap | default(true) | bool)) or (swap_size is defined)
-          - (not (enable_swap | default(true) | bool)) or (swap_size | regex_search('^[0-9]+[MG]$'))
+          - (not (enable_swap | default(true) | bool)) or (swap_size is match('^[0-9]+[MG]$'))
         fail_msg: >-
           Missing or invalid vars. Define username, ansible_port, and swap_size
           when swap is enabled before running this playbook.

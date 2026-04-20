@@ -11,9 +11,12 @@ all:
     username: yewfence
 
     # Optional: extra SSH options appended to every Ansible SSH connection.
-    # Default keeps known hosts local to the project directory. Child groups
-    # (e.g., `pve_vms`) override this to disable host-key checking entirely.
-    # ansible_ssh_extra_args: "-o UserKnownHostsFile=./.ssh_known_hosts"
+    # Default keeps known hosts in the inventory directory and automatically
+    # accepts first-seen host keys. Child groups (e.g., `pve_vms`) override
+    # this to disable host-key checking entirely.
+    # ansible_ssh_extra_args: >-
+    #   -o UserKnownHostsFile={{ inventory_dir }}/.ssh_known_hosts
+    #   -o StrictHostKeyChecking=accept-new
 
     # Optional: sshid.io username used by `init-server.yml` when fetching SSH
     # public keys. Leave unset when it matches `username`, or override per host.
