@@ -8,10 +8,22 @@
     mode: "0700"
   when: ssh_key_management_manage_root_authorized_keys | bool
 
+- name: Normalize the prepared authorized_keys content
+  ansible.builtin.set_fact:
+    ssh_key_management_authorized_keys_normalized_content: >-
+      {{
+        ssh_key_management_authorized_keys_content
+        | replace('\\n', '\n')
+      }}
+  changed_when: false
+  when:
+    - ssh_key_management_manage_root_authorized_keys | bool
+      or ssh_key_management_copy_authorized_keys_to_user | bool
+
 - name: Require prepared authorized_keys content when SSH keys are managed
   ansible.builtin.assert:
     that:
-      - ssh_key_management_authorized_keys_content | trim | length > 0
+      - ssh_key_management_authorized_keys_normalized_content | trim | length > 0
     fail_msg: >-
       Provide ssh_key_management_authorized_keys_content before managing
       authorized_keys.
@@ -23,7 +35,7 @@
   ansible.builtin.copy:
     dest: /root/.ssh/authorized_keys
     mode: "0600"
-    content: "{{ ssh_key_management_authorized_keys_content | trim ~ '\n' }}"
+    content: "{{ ssh_key_management_authorized_keys_normalized_content | trim ~ '\n' }}"
   when: ssh_key_management_manage_root_authorized_keys | bool
 
 - name: Ensure the managed user SSH directory exists
@@ -43,7 +55,7 @@
     owner: "{{ username }}"
     group: "{{ username }}"
     mode: "0600"
-    content: "{{ ssh_key_management_authorized_keys_content | trim ~ '\n' }}"
+    content: "{{ ssh_key_management_authorized_keys_normalized_content | trim ~ '\n' }}"
   when:
     - ssh_key_management_manage_user | bool
     - ssh_key_management_copy_authorized_keys_to_user | bool

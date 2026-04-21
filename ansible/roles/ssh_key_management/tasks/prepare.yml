@@ -2,14 +2,14 @@
 - name: Initialize SSH key management preparation facts
   ansible.builtin.set_fact:
     ssh_key_management_enabled_hosts: []
+    ssh_key_management_repo_authorized_keys_lines: []
     ssh_key_management_sshid_keys_map: {}
     ssh_key_management_authorized_keys_map: {}
   changed_when: false
 
 - name: Record the server hosts selected for SSH key management preparation
   ansible.builtin.set_fact:
-    ssh_key_management_prepare_hosts: >-
-      {{ ssh_key_management_target_hosts | default(groups['servers'] | default([])) }}
+    ssh_key_management_prepare_hosts: "{{ ssh_key_management_target_hosts | default(groups['servers'] | default([])) }}"
   changed_when: false
 
 - name: Record server hosts that manage SSH keys through this repository
@@ -23,8 +23,7 @@
 
 - name: Read the repository-managed SSH public keys
   ansible.builtin.set_fact:
-    ssh_key_management_repo_authorized_keys_content: >-
-      {{ lookup('ansible.builtin.file', ssh_key_management_repo_authorized_keys_file) }}
+    ssh_key_management_repo_authorized_keys_lines: "{{ lookup('ansible.builtin.file', ssh_key_management_repo_authorized_keys_file).splitlines() }}"
   changed_when: false
   when: ssh_key_management_enabled_hosts | length > 0
 
@@ -66,8 +65,8 @@
   ansible.builtin.set_fact:
     ssh_key_management_sshid_keys_map: >-
       {{
-        ssh_key_management_sshid_keys_map |
-        combine({ item.item: item.stdout | trim })
+        ssh_key_management_sshid_keys_map
+        | combine({item.item: item.stdout | trim})
       }}
   loop: "{{ ssh_key_management_sshid_fetch.results | default([]) }}"
   loop_control:
@@ -77,22 +76,16 @@
 
 - name: Build the authorized_keys payload for each managed server
   ansible.builtin.set_fact:
-    ssh_key_management_authorized_keys_map: >-
-      {{
-        ssh_key_management_authorized_keys_map |
-        combine({
-          item: (
-            (
-              [ssh_key_management_sshid_keys_map[item] | default('')]
-              + ssh_key_management_repo_authorized_keys_content.splitlines()
-            )
-            | map('trim')
-            | reject('equalto', '')
-            | unique
-            | join('\n')
-          )
-        })
-      }}
+    ssh_key_management_authorized_keys_map: "{{ ssh_key_management_authorized_keys_map
+      | combine({
+        item: (
+          ([ssh_key_management_sshid_keys_map[item] | default('')] + ssh_key_management_repo_authorized_keys_lines)
+          | map('trim')
+          | reject('equalto', '')
+          | unique
+          | join('\n')
+        )
+      }) }}"
   loop: "{{ ssh_key_management_enabled_hosts }}"
   loop_control:
     label: "{{ item }}"

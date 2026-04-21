@@ -1,11 +1,7 @@
 ---
 ssh_key_management_fetch_sshid_keys: true
 ssh_key_management_repo_authorized_keys_file: "{{ playbook_dir }}/files/server_authorized_keys.pub"
-ssh_key_management_manage_root_authorized_keys: >-
-  {{ common_manage_root_ssh_key if (common_manage_root_ssh_key is defined) else true }}
-ssh_key_management_copy_authorized_keys_to_user: >-
-  {{ common_copy_root_authorized_keys if (common_copy_root_authorized_keys is defined) else true }}
-ssh_key_management_authorized_keys_content: >-
-  {{ common_authorized_keys_content if (common_authorized_keys_content is defined) else '' }}
-ssh_key_management_manage_user: >-
-  {{ common_manage_user if (common_manage_user is defined) else true }}
+ssh_key_management_manage_root_authorized_keys: "{{ common_manage_root_ssh_key if (common_manage_root_ssh_key is defined) else true }}"
+ssh_key_management_copy_authorized_keys_to_user: "{{ common_copy_root_authorized_keys if (common_copy_root_authorized_keys is defined) else true }}"
+ssh_key_management_authorized_keys_content: "{{ common_authorized_keys_content if (common_authorized_keys_content is defined) else '' }}"
+ssh_key_management_manage_user: "{{ common_manage_user if (common_manage_user is defined) else true }}"

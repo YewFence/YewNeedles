@@ -55,7 +55,7 @@
              + (
                ['',
                 '  Authorized Keys (sshid.io + ' + ssh_key_management_repo_authorized_keys_file + ')']
-               + (ssh_key_management_authorized_keys_map[_h].split('\n') | map('regex_replace', '^', '    ') | list)
+               + ((ssh_key_management_authorized_keys_map[_h] | replace('\\n', '\n')).splitlines() | map('regex_replace', '^', '    ') | list)
                if (hostvars[_h].enable_ssh_key_management | default(true) | bool)
                else ['',
                      '  Authorized Keys',
@@ -88,11 +88,8 @@
   vars:
     common_create_temp_password: true
     server_init_prepare_host: localhost
-    ssh_key_management_authorized_keys_content: >-
-      {{
-        hostvars[server_init_prepare_host].ssh_key_management_authorized_keys_map[inventory_hostname]
-        | default('')
-      }}
+    server_init_authorized_keys_map: "{{ hostvars[server_init_prepare_host].ssh_key_management_authorized_keys_map }}"
+    ssh_key_management_authorized_keys_content: "{{ server_init_authorized_keys_map[inventory_hostname] | default('') }}"
 
   pre_tasks:
     # Fail before any remote changes if the required connection and user vars are
