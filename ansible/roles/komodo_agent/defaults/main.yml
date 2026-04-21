@@ -4,11 +4,19 @@ komodo_agent_state: present
 komodo_agent_image: ghcr.io/moghtech/komodo-periphery:2
 komodo_agent_project_name: komodo-periphery
 komodo_agent_container_name: komodo-periphery
-komodo_agent_project_dir: /opt/komodo-agent
+komodo_agent_project_dir: /opt/komodo-periphery
 komodo_agent_compose_file: "{{ komodo_agent_project_dir }}/compose.yml"
 komodo_agent_env_file: "{{ komodo_agent_project_dir }}/.env"
 komodo_agent_keys_volume_name: "{{ komodo_agent_project_name }}_keys"
 komodo_agent_private_key_filename: periphery.key
+komodo_agent_managed_user: "{{ username | default('root') }}"
+komodo_agent_managed_group: "{{ komodo_agent_managed_user }}"
+komodo_agent_managed_home: >-
+  {{
+    '/root'
+    if komodo_agent_managed_user == 'root'
+    else '/home/' ~ komodo_agent_managed_user
+  }}
 
 # This path is mounted with the same path inside and outside the container.
 # Keep all Komodo-managed repos, stacks, builds, and bind-mounted app data here.

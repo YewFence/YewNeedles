@@ -27,6 +27,17 @@
       enabling the Komodo agent.
   when: komodo_agent_state == 'present'
 
+- name: Validate Komodo managed user configuration
+  ansible.builtin.assert:
+    that:
+      - komodo_agent_managed_user | string | trim | length > 0
+      - komodo_agent_managed_group | string | trim | length > 0
+      - komodo_agent_managed_home is match('^/')
+    fail_msg: >-
+      komodo_agent_managed_user, komodo_agent_managed_group, and
+      komodo_agent_managed_home must be set to non-empty values, and
+      komodo_agent_managed_home must be an absolute path.
+
 - name: Check Docker CLI availability
   ansible.builtin.command:
     argv:
@@ -133,6 +144,8 @@
   ansible.builtin.file:
     path: "{{ komodo_agent_root }}"
     state: directory
+    owner: "{{ komodo_agent_managed_user }}"
+    group: "{{ komodo_agent_managed_group }}"
     mode: "0755"
   when: komodo_agent_state == 'present'
 
@@ -140,6 +153,8 @@
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
+    owner: "{{ komodo_agent_managed_user }}"
+    group: "{{ komodo_agent_managed_group }}"
     mode: "0755"
   loop: "{{ komodo_agent_workload_dirs }}"
   when: komodo_agent_state == 'present'
@@ -148,6 +163,8 @@
   ansible.builtin.file:
     path: "{{ komodo_agent_project_dir }}"
     state: directory
+    owner: "{{ komodo_agent_managed_user }}"
+    group: "{{ komodo_agent_managed_group }}"
     mode: "0750"
   when: komodo_agent_state == 'present'
 
@@ -155,6 +172,8 @@
   ansible.builtin.template:
     src: periphery.env.j2
     dest: "{{ komodo_agent_env_file }}"
+    owner: "{{ komodo_agent_managed_user }}"
+    group: "{{ komodo_agent_managed_group }}"
     mode: "0600"
   no_log: "{{ komodo_agent_env_no_log | bool }}"
   when: komodo_agent_state == 'present'
@@ -163,8 +182,26 @@
   ansible.builtin.template:
     src: compose.yml.j2
     dest: "{{ komodo_agent_compose_file }}"
+    owner: "{{ komodo_agent_managed_user }}"
+    group: "{{ komodo_agent_managed_group }}"
     mode: "0644"
   when: komodo_agent_state == 'present'
+
+- name: Pull Komodo Periphery image
+  community.docker.docker_image_pull:
+    name: "{{ komodo_agent_image }}"
+    pull: always
+  become: true
+  become_user: "{{ komodo_agent_managed_user }}"
+  environment:
+    HOME: "{{ komodo_agent_managed_home }}"
+  register: komodo_agent_image_pull
+  retries: "{{ fetch_retries }}"
+  delay: "{{ fetch_retry_delay }}"
+  until: komodo_agent_image_pull is not failed
+  when:
+    - komodo_agent_state == 'present'
+    - komodo_agent_pull_image | bool
 
 - name: Start Komodo Periphery
   community.docker.docker_compose_v2:
@@ -174,9 +211,13 @@
     env_files:
       - .env
     project_name: "{{ komodo_agent_project_name }}"
-    pull: "{{ (komodo_agent_pull_image | bool) | ternary('always', 'never') }}"
+    pull: never
     remove_orphans: "{{ komodo_agent_remove_orphans | bool }}"
     state: present
+  become: true
+  become_user: "{{ komodo_agent_managed_user }}"
+  environment:
+    HOME: "{{ komodo_agent_managed_home }}"
   when: komodo_agent_state == 'present'
 
 - name: Check existing Komodo compose file
@@ -196,6 +237,10 @@
     remove_orphans: "{{ komodo_agent_remove_orphans | bool }}"
     remove_volumes: "{{ komodo_agent_remove_volumes | bool }}"
     state: absent
+  become: true
+  become_user: "{{ komodo_agent_managed_user }}"
+  environment:
+    HOME: "{{ komodo_agent_managed_home }}"
   when:
     - komodo_agent_state == 'absent'
     - komodo_agent_compose_file_state.stat.exists
