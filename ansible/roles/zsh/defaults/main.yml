@@ -12,6 +12,8 @@ zsh_plugins:
 
 zsh_history_size: 10000
 
+zsh_prompt_enable: true
+
 zsh_rc_block: |
   HISTFILE=~/.zsh_history
   HISTSIZE={{ zsh_history_size }}
@@ -26,3 +28,13 @@ zsh_rc_block: |
   {% for plugin in zsh_plugins %}
   source {{ zsh_plugin_dir }}/{{ plugin.name }}/{{ plugin.name }}.zsh
   {% endfor %}
+  {% if zsh_prompt_enable %}
+
+  autoload -Uz vcs_info
+  zstyle ':vcs_info:*' enable git
+  zstyle ':vcs_info:git:*' formats ' %F{green}(%b)%f'
+  zstyle ':vcs_info:git:*' actionformats ' %F{green}(%b|%a)%f'
+  precmd() { vcs_info }
+  setopt PROMPT_SUBST
+  PROMPT='%F{cyan}%n%f@%F{magenta}%m%f %F{yellow}%~%f${vcs_info_msg_0_} %(?.%F{green}.%F{red})❯%f '
+  {% endif %}
