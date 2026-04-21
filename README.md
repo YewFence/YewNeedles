@@ -34,6 +34,22 @@ mise r install-collections
 mise r play-server
 ```
 
+如果只想验证一台机器，可以直接跑：
+
+```bash
+mise r play-server-host pve-services-host
+```
+
+如果想按主机模式挑选目标，也可以直接把 inventory host pattern 传给 `play-server`：
+
+```bash
+mise r play-server pve-services-host
+mise r play-server 'servers:!canadianyew'
+mise r play-server 'servers:&pve_vms'
+```
+
+这里的服务端入口会固定把 `localhost` 和目标主机一起传给 playbook，这样本地确认、SSH key 预处理和远端执行会保持一致，不会因为只跑单机而跳过第一段 `localhost` play。
+
 ### 开发环境
 
 使用 `ansible/init-devbox.yml` 初始化 PVE VM / WSL：
@@ -121,8 +137,11 @@ uv run ansible-lint --offline ansible/init-server.yml ansible/init-devbox.yml an
 ### 3. 目标主机确认
 
 ```bash
-uv run ansible-playbook -i ansible/inventory.yml ansible/init-server.yml --list-hosts
 uv run ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml --list-hosts
+uv run ansible-playbook -i ansible/inventory.yml \
+  --limit 'localhost,example_vps' \
+  --extra-vars 'server_init_hosts=example_vps' \
+  ansible/init-server.yml --list-hosts
 ```
 
 查看任务列表
@@ -134,18 +153,22 @@ uv run ansible-playbook -i ansible/inventory.yml ansible/init-server.yml --list-
 ### 4. 只跑单个主机或单个组
 
 ```bash
-uv run ansible-playbook -i ansible/inventory.yml ansible/init-server.yml --limit example_vps
 uv run ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml --limit example_pve_vm
 uv run ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml --limit pve_vms
+mise r play-server-host example_vps
+mise r play-server 'servers:!canadianyew'
 ```
 
-`--limit` 很适合做增量验证，先打一台确认没问题，再扩大范围。
+`--limit` 很适合 devbox 做增量验证，先打一台确认没问题，再扩大范围。服务端入口因为第一段确认和 SSH key 预处理必须在本地执行，所以更推荐用 `mise r play-server` 和 `mise r play-server-host` 这两个封装好的入口。
 
 ### 5. 用 check mode dry-run
 
 ```bash
-uv run ansible-playbook -i ansible/inventory.yml ansible/init-server.yml --check --diff
 uv run ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml --check --diff
+uv run ansible-playbook -i ansible/inventory.yml \
+  --limit 'localhost,example_vps' \
+  --extra-vars 'server_init_hosts=example_vps' \
+  ansible/init-server.yml --check --diff
 ```
 
 - `--check` 表示尽量模拟执行，不真正落盘
@@ -167,9 +190,10 @@ uv run ansible-playbook -K -i ansible/inventory.yml ansible/init-devbox.yml --li
 适合做一次性试跑；长期配置还是应该写回 `inventory.yml` 或 `group_vars`。
 
 ```bash
-uv run ansible-playbook -i ansible/inventory.yml ansible/init-server.yml \
-  --limit example_vps \
-  --extra-vars "enable_docker=false enable_tailscale=false swap_size=4G"
+uv run ansible-playbook -i ansible/inventory.yml \
+  --limit 'localhost,example_vps' \
+  --extra-vars "server_init_hosts=example_vps enable_docker=false enable_tailscale=false swap_size=4G" \
+  ansible/init-server.yml
 ```
 
 ```bash

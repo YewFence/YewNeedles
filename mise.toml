@@ -11,6 +11,34 @@ ANSIBLE_LOCAL_TEMP = "{{config_root}}/.ansible/tmp"
 [tasks.play-dev]
 run = "uv run ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml"
 [tasks.play-server]
-run = "uv run ansible-playbook -i ansible/inventory.yml ansible/init-server.yml"
+description = "Initialize server hosts from an inventory host pattern"
+usage = '''
+arg "[host_pattern]" help="Inventory host pattern to initialize" default="servers"
+'''
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+host_pattern="${usage_host_pattern:-servers}"
+uv run ansible-playbook \
+  -i ansible/inventory.yml \
+  --limit "localhost,${host_pattern}" \
+  -e "server_init_hosts=${host_pattern}" \
+  ansible/init-server.yml
+'''
+[tasks.play-server-host]
+description = "Initialize one server host"
+usage = '''
+arg "<host>" help="Inventory host name to initialize"
+'''
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+host_pattern="${usage_host?}"
+uv run ansible-playbook \
+  -i ansible/inventory.yml \
+  --limit "localhost,${host_pattern}" \
+  -e "server_init_hosts=${host_pattern}" \
+  ansible/init-server.yml
+'''
 [tasks.lint]
 run = "uv run ansible-lint --offline ansible/init-server.yml ansible/init-devbox.yml ansible/roles"

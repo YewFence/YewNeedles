@@ -1,13 +1,21 @@
 ---
 - name: Confirm server initialization plan
-  hosts: servers
+  hosts: localhost
   connection: local
   gather_facts: false
   vars:
-    server_init_target_hosts: "{{ ansible_play_hosts_all }}"
-    server_init_orchestrator_host: "{{ ansible_play_hosts_all | first }}"
+    server_init_hosts: "{{ server_init_hosts | default('servers') }}"
+    server_init_target_hosts: "{{ query('ansible.builtin.inventory_hostnames', server_init_hosts) }}"
 
   tasks:
+    - name: Abort when no server hosts match the requested pattern
+      ansible.builtin.assert:
+        that:
+          - server_init_target_hosts | length > 0
+        fail_msg: >-
+          No server hosts matched server_init_hosts={{ server_init_hosts }}.
+          Adjust the host pattern and try again.
+
     - name: Prepare SSH key management inputs for the selected server hosts
       ansible.builtin.include_role:
         name: ssh_key_management
@@ -15,7 +23,6 @@
         public: true
       vars:
         ssh_key_management_target_hosts: "{{ server_init_target_hosts }}"
-      when: inventory_hostname == server_init_orchestrator_host
 
     - name: Build preview lines for each selected host
       ansible.builtin.set_fact:
@@ -57,34 +64,30 @@
       loop: "{{ server_init_target_hosts }}"
       loop_control:
         loop_var: _h
-      when: inventory_hostname == server_init_orchestrator_host
 
     - name: Preview host settings before any remote changes
       ansible.builtin.debug:
         msg: "{{ _preview_lines }}"
-      when: inventory_hostname == server_init_orchestrator_host
 
     - name: Require a final yes before continuing
       ansible.builtin.pause:
         prompt: Type "yes" to continue. Any other input will cancel the run.
       register: server_init_confirmation
-      when: inventory_hostname == server_init_orchestrator_host
 
     - name: Abort when the operator does not confirm
       ansible.builtin.fail:
         msg: Cancelled before making changes.
       when:
-        - inventory_hostname == server_init_orchestrator_host
         - server_init_confirmation.user_input | lower != 'yes'
 
 - name: Initialize Debian or Ubuntu server hosts
-  hosts: servers
+  hosts: "{{ server_init_hosts | default('servers') }}"
   serial: 1
   become: true
   gather_facts: false
   vars:
     common_create_temp_password: true
-    server_init_prepare_host: "{{ ansible_play_hosts_all | first }}"
+    server_init_prepare_host: localhost
     ssh_key_management_authorized_keys_content: >-
       {{
         hostvars[server_init_prepare_host].ssh_key_management_authorized_keys_map[inventory_hostname]
