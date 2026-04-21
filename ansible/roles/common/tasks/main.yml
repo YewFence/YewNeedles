@@ -46,6 +46,31 @@
     append: true
   when: common_manage_user | bool
 
+# Pre-create remote temp directories so later become/become_user tasks do not
+# trigger remote_tmp warnings or permission mismatches.
+- name: Ensure the root Ansible temp directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop:
+    - /root/.ansible
+    - /root/.ansible/tmp
+
+- name: Ensure the managed user Ansible temp directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0700"
+  loop:
+    - /home/{{ username }}/.ansible
+    - /home/{{ username }}/.ansible/tmp
+  when: common_manage_user | bool
+
 - name: Generate a temporary password for a newly created user
   ansible.builtin.command: openssl rand -base64 12
   register: common_generated_password_cmd
