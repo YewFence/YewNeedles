@@ -390,6 +390,7 @@
   async: "{{ devbox_network_activation_async_timeout }}"
   poll: 0
   register: devbox_network_activation_job
+  changed_when: true
   when: devbox_network_reconnect_target != (ansible_host | default(inventory_hostname))
 
 # ===========================================================================
