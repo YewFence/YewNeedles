@@ -3,4 +3,4 @@ set -euo pipefail
 
 #MISE description="Install Ansible collections required by this repository"
 
-ansible-galaxy collection install -r ansible/collections/requirements.yml
+uv run ansible-galaxy collection install -r ansible/collections/requirements.yml

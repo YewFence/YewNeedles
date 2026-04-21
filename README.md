@@ -7,6 +7,18 @@
 - `servers`：公网 VPS / 生产环境
 - `devboxes`：PVE VM / WSL 开发环境
 
+## 控制端准备
+
+先用 `mise` 装本地工具，再用 `uv` 安装这个仓库声明的 Python 依赖：
+
+```bash
+mise install
+uv sync
+mise r install-collections
+```
+
+这里的控制端依赖已经收进 `pyproject.toml`，包括 `ansible-core`、`ansible-lint` 和给 `password_hash` 用的 `passlib`，需要本机有一个可用的 Python 3.12 及以上版本。
+
 ## 当前入口
 
 ### 生产环境
@@ -19,7 +31,7 @@
 - BBR / Swap / UFW / Docker / Tailscale
 
 ```bash
-ansible-playbook -i ansible/inventory.yml ansible/init-server.yml
+mise r play-server
 ```
 
 ### 开发环境
@@ -44,13 +56,13 @@ Claude Code、OpenAI Codex 和 cc-switch-cli，然后配置 cc-switch 的 WebDAV
 WebDAV 凭据（`agent_software_cc_switch_webdav_*`）建议用 `ansible-vault` 加密。
 
 ```bash
-ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml
+mise r play-dev
 ```
 
-如果你的控制端使用的是 `ansible-core`，先安装这个仓库依赖的 collection：
+如果只想单独安装这个仓库依赖的 collection，可以直接跑：
 
 ```bash
-ansible-galaxy collection install -r ansible/collections/requirements.yml
+mise r install-collections
 ```
 
 ## Inventory 约定
@@ -88,7 +100,7 @@ enable_ssh_key_management: false
 ### 1. 检查 inventory 解析
 
 ```bash
-ansible-inventory -i ansible/inventory.yml --graph
+uv run ansible-inventory -i ansible/inventory.yml --graph
 ```
 
 适合先确认：
@@ -99,9 +111,9 @@ ansible-inventory -i ansible/inventory.yml --graph
 ### 2. 语法检查
 
 ```bash
-ansible-playbook -i ansible/inventory.yml ansible/init-server.yml --syntax-check
-ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml --syntax-check
-ansible-lint --offline ansible/init-server.yml ansible/init-devbox.yml ansible/roles
+uv run ansible-playbook -i ansible/inventory.yml ansible/init-server.yml --syntax-check
+uv run ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml --syntax-check
+uv run ansible-lint --offline ansible/init-server.yml ansible/init-devbox.yml ansible/roles
 ```
 
 这一步只检查 playbook 语法和变量引用是否明显有问题，不会真正改机器。
@@ -109,22 +121,22 @@ ansible-lint --offline ansible/init-server.yml ansible/init-devbox.yml ansible/r
 ### 3. 目标主机确认
 
 ```bash
-ansible-playbook -i ansible/inventory.yml ansible/init-server.yml --list-hosts
-ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml --list-hosts
+uv run ansible-playbook -i ansible/inventory.yml ansible/init-server.yml --list-hosts
+uv run ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml --list-hosts
 ```
 
 查看任务列表
 
 ```bash
-ansible-playbook -i ansible/inventory.yml ansible/init-server.yml --list-tasks
+uv run ansible-playbook -i ansible/inventory.yml ansible/init-server.yml --list-tasks
 ```
 
 ### 4. 只跑单个主机或单个组
 
 ```bash
-ansible-playbook -i ansible/inventory.yml ansible/init-server.yml --limit example_vps
-ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml --limit example_pve_vm
-ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml --limit pve_vms
+uv run ansible-playbook -i ansible/inventory.yml ansible/init-server.yml --limit example_vps
+uv run ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml --limit example_pve_vm
+uv run ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml --limit pve_vms
 ```
 
 `--limit` 很适合做增量验证，先打一台确认没问题，再扩大范围。
@@ -132,8 +144,8 @@ ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml --limit pve_vm
 ### 5. 用 check mode dry-run
 
 ```bash
-ansible-playbook -i ansible/inventory.yml ansible/init-server.yml --check --diff
-ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml --check --diff
+uv run ansible-playbook -i ansible/inventory.yml ansible/init-server.yml --check --diff
+uv run ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml --check --diff
 ```
 
 - `--check` 表示尽量模拟执行，不真正落盘
@@ -147,7 +159,7 @@ ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml --check --diff
 `init-devbox.yml` 使用了 `become: true`。如果你的 devbox 连接用户不是 root，且 sudo 需要密码，可以这样跑：
 
 ```bash
-ansible-playbook -K -i ansible/inventory.yml ansible/init-devbox.yml --limit example_pve_vm
+uv run ansible-playbook -K -i ansible/inventory.yml ansible/init-devbox.yml --limit example_pve_vm
 ```
 
 ### 7. 临时覆盖
@@ -155,13 +167,13 @@ ansible-playbook -K -i ansible/inventory.yml ansible/init-devbox.yml --limit exa
 适合做一次性试跑；长期配置还是应该写回 `inventory.yml` 或 `group_vars`。
 
 ```bash
-ansible-playbook -i ansible/inventory.yml ansible/init-server.yml \
+uv run ansible-playbook -i ansible/inventory.yml ansible/init-server.yml \
   --limit example_vps \
   --extra-vars "enable_docker=false enable_tailscale=false swap_size=4G"
 ```
 
 ```bash
-ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml \
+uv run ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml \
   --limit example_pve_vm \
   --extra-vars '{"dev_enable_docker": true, "mise_tools_extra": {"node": "22"}}'
 ```

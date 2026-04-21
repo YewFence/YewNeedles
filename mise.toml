@@ -1,7 +1,7 @@
 [tools]
-ansible = { version = "latest", pipx_args = "--include-deps", uvx = "false" }
+uv = "latest"
+python = "3.14"
 "github:YewFence/YewSeal" = "latest"
-"pipx:ansible-lint" = "latest"
 
 [env]
 ANSIBLE_CONFIG = "{{config_root}}/ansible/ansible.cfg"
@@ -9,6 +9,6 @@ ANSIBLE_COLLECTIONS_SCAN_SYS_PATH = "true"
 ANSIBLE_LOCAL_TEMP = "{{config_root}}/.ansible/tmp"
 
 [tasks.play-dev]
-run = "ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml"
+run = "uv run ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml"
 [tasks.play-server]
-run = "ansible-playbook -i ansible/inventory.yml ansible/init-server.yml"
+run = "uv run ansible-playbook -i ansible/inventory.yml ansible/init-server.yml"

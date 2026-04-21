@@ -6,5 +6,5 @@ set -euo pipefail
 
 inventory="${usage_inventory:?}"
 
-ansible-playbook --syntax-check -i "$inventory" ansible/init-server.yml
-ansible-playbook --syntax-check -i "$inventory" ansible/init-devbox.yml
+uv run ansible-playbook --syntax-check -i "$inventory" ansible/init-server.yml
+uv run ansible-playbook --syntax-check -i "$inventory" ansible/init-devbox.yml

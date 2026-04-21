@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ansible_bin="$(command -v ansible)"
-ansible_root="${ansible_bin%/bin/ansible}"
-ansible_site_packages="$(printf '%s\n' "$ansible_root"/venvs/ansible/lib/python*/site-packages | head -n1)"
-
-if [ ! -d "$ansible_site_packages/ansible_collections" ]; then
-  echo "Unable to locate ansible tool site-packages for ansible-lint collection loading" >&2
-  exit 1
-fi
-
-export PYTHONPATH="$ansible_site_packages${PYTHONPATH:+:$PYTHONPATH}"
-export ANSIBLE_COLLECTIONS_PATH="$ansible_site_packages${ANSIBLE_COLLECTIONS_PATH:+:$ANSIBLE_COLLECTIONS_PATH}"
-
-ansible-lint --offline ansible/init-server.yml ansible/init-devbox.yml ansible/roles
+uv run ansible-lint --offline ansible/init-server.yml ansible/init-devbox.yml ansible/roles

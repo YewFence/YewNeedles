@@ -27,4 +27,4 @@ for f in .vault_pass .vault_pass.txt .vault-password .vault_password; do
   fi
 done
 
-ansible-vault "$action" "${vault_pass_args[@]}" "$file"
+uv run ansible-vault "$action" "${vault_pass_args[@]}" "$file"
