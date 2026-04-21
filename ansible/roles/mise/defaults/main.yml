@@ -1,13 +1,16 @@
 ---
+mise_user_home: /home/{{ username }}
+mise_xdg_config_home: "{{ mise_user_home }}/.config"
+mise_xdg_data_home: "{{ mise_user_home }}/.local/share"
 mise_install_script_url: https://mise.run
 mise_install_script_dest: /tmp/mise-install.sh
-mise_binary_path: /home/{{ username }}/.local/bin/mise
-mise_config_dir: /home/{{ username }}/.config/mise
+mise_binary_path: "{{ mise_user_home }}/.local/bin/mise"
+mise_config_dir: "{{ mise_xdg_config_home }}/mise"
 mise_config_file: "{{ mise_config_dir }}/config.toml"
 mise_shell_activation_targets:
-  - path: /home/{{ username }}/.bashrc
+  - path: "{{ mise_user_home }}/.bashrc"
     shell: bash
-  - path: /home/{{ username }}/.zshrc
+  - path: "{{ mise_user_home }}/.zshrc"
     shell: zsh
 mise_tools_base: {}
 mise_tools_dev: {}

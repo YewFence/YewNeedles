@@ -128,6 +128,13 @@
     - name: Install mise and render the global tool configuration
       ansible.builtin.include_role:
         name: mise
+        apply:
+          become: true
+          become_user: "{{ username }}"
+          environment:
+            HOME: "/home/{{ username }}"
+            XDG_CONFIG_HOME: "/home/{{ username }}/.config"
+            XDG_DATA_HOME: "/home/{{ username }}/.local/share"
       when: enable_mise | default(true) | bool
 
     # Keep SSH auth changes isolated so password auth can be disabled in a
@@ -185,6 +192,12 @@
   post_tasks:
     - name: Read mise version for the summary
       ansible.builtin.command: "{{ mise_managed_binary_path }} --version"
+      become: true
+      environment:
+        HOME: "/home/{{ username }}"
+        XDG_CONFIG_HOME: "/home/{{ username }}/.config"
+        XDG_DATA_HOME: "/home/{{ username }}/.local/share"
+      become_user: "{{ username }}"
       register: mise_version
       changed_when: false
       when:

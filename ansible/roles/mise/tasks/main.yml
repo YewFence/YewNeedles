@@ -25,10 +25,6 @@
     argv:
       - /bin/sh
       - "{{ mise_install_script_dest }}"
-  environment:
-    HOME: /home/{{ username }}
-  become: true
-  become_user: "{{ username }}"
   register: mise_install_result
   changed_when: mise_install_result.rc == 0
   retries: "{{ fetch_retries }}"
@@ -39,6 +35,14 @@
 - name: Ensure the managed user's mise config directory exists
   ansible.builtin.file:
     path: "{{ mise_config_dir }}"
+    state: directory
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: "0755"
+
+- name: Ensure the managed user's mise data directory exists
+  ansible.builtin.file:
+    path: "{{ mise_xdg_data_home }}/mise"
     state: directory
     owner: "{{ username }}"
     group: "{{ username }}"
@@ -61,10 +65,6 @@
       - --global
       - --missing
       - --no-header
-  environment:
-    HOME: /home/{{ username }}
-  become: true
-  become_user: "{{ username }}"
   register: mise_missing_tools
   changed_when: false
 
@@ -83,10 +83,6 @@
       - "{{ mise_binary_path }}"
       - install
       - "{{ item }}"
-  environment:
-    HOME: /home/{{ username }}
-  become: true
-  become_user: "{{ username }}"
   register: mise_tool_install
   retries: "{{ fetch_retries }}"
   delay: "{{ fetch_retry_delay }}"
