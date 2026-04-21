@@ -6,10 +6,16 @@
     ssh_key_management_authorized_keys_map: {}
   changed_when: false
 
+- name: Record the server hosts selected for SSH key management preparation
+  ansible.builtin.set_fact:
+    ssh_key_management_prepare_hosts: >-
+      {{ ssh_key_management_target_hosts | default(groups['servers'] | default([])) }}
+  changed_when: false
+
 - name: Record server hosts that manage SSH keys through this repository
   ansible.builtin.set_fact:
     ssh_key_management_enabled_hosts: "{{ ssh_key_management_enabled_hosts + [item] }}"
-  loop: "{{ groups['servers'] | default([]) }}"
+  loop: "{{ ssh_key_management_prepare_hosts }}"
   loop_control:
     label: "{{ item }}"
   when: hostvars[item].enable_ssh_key_management | default(true) | bool

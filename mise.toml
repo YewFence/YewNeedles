@@ -12,3 +12,5 @@ ANSIBLE_LOCAL_TEMP = "{{config_root}}/.ansible/tmp"
 run = "uv run ansible-playbook -i ansible/inventory.yml ansible/init-devbox.yml"
 [tasks.play-server]
 run = "uv run ansible-playbook -i ansible/inventory.yml ansible/init-server.yml"
+[tasks.lint]
+run = "uv run ansible-lint --offline ansible/init-server.yml ansible/init-devbox.yml ansible/roles"

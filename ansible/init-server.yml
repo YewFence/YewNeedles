@@ -1,17 +1,23 @@
 ---
 - name: Confirm server initialization plan
-  hosts: localhost
+  hosts: servers
   connection: local
   gather_facts: false
+  vars:
+    server_init_target_hosts: "{{ ansible_play_hosts_all }}"
+    server_init_orchestrator_host: "{{ ansible_play_hosts_all | first }}"
 
   tasks:
-    - name: Prepare SSH key management inputs on localhost
+    - name: Prepare SSH key management inputs for the selected server hosts
       ansible.builtin.include_role:
         name: ssh_key_management
         tasks_from: prepare
         public: true
+      vars:
+        ssh_key_management_target_hosts: "{{ server_init_target_hosts }}"
+      when: inventory_hostname == server_init_orchestrator_host
 
-    - name: Build preview lines for each host
+    - name: Build preview lines for each selected host
       ansible.builtin.set_fact:
         _preview_lines: >-
           {{ _preview_lines | default(['About to initialize these server hosts:'])
@@ -48,23 +54,28 @@
                      '  Authorized Keys',
                      '    Managed externally or disabled in this repo.']
              ) }}
-      loop: "{{ groups['servers'] | default([]) }}"
+      loop: "{{ server_init_target_hosts }}"
       loop_control:
         loop_var: _h
+      when: inventory_hostname == server_init_orchestrator_host
 
     - name: Preview host settings before any remote changes
       ansible.builtin.debug:
         msg: "{{ _preview_lines }}"
+      when: inventory_hostname == server_init_orchestrator_host
 
     - name: Require a final yes before continuing
       ansible.builtin.pause:
         prompt: Type "yes" to continue. Any other input will cancel the run.
       register: server_init_confirmation
+      when: inventory_hostname == server_init_orchestrator_host
 
     - name: Abort when the operator does not confirm
       ansible.builtin.fail:
         msg: Cancelled before making changes.
-      when: server_init_confirmation.user_input | lower != 'yes'
+      when:
+        - inventory_hostname == server_init_orchestrator_host
+        - server_init_confirmation.user_input | lower != 'yes'
 
 - name: Initialize Debian or Ubuntu server hosts
   hosts: servers
@@ -73,8 +84,12 @@
   gather_facts: false
   vars:
     common_create_temp_password: true
+    server_init_prepare_host: "{{ ansible_play_hosts_all | first }}"
     ssh_key_management_authorized_keys_content: >-
-      {{ hostvars['localhost'].ssh_key_management_authorized_keys_map[inventory_hostname] | default('') }}
+      {{
+        hostvars[server_init_prepare_host].ssh_key_management_authorized_keys_map[inventory_hostname]
+        | default('')
+      }}
 
   pre_tasks:
     # Fail before any remote changes if the required connection and user vars are
