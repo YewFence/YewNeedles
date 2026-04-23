@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+#MISE description "Add a missing executable bit to a file installed by mise"
+#USAGE arg "<tool>" help="Installed mise tool name or full mise spec, e.g. cc-switch or npm:@scope/pkg"
+#USAGE arg "[executable]" help="Executable file name to chmod, defaults to the tool name"
+
+set -euo pipefail
+
+tool_input="${usage_tool?}"
+executable_name="${usage_executable:-}"
+
+default_executable_name() {
+  local spec="$1"
+  local name="$spec"
+
+  if [[ "$name" == *:* ]]; then
+    name="${name#*:}"
+  fi
+
+  name="${name##*/}"
+
+  if [[ "$name" == *@* && "$name" != @* ]]; then
+    name="${name%@*}"
+  fi
+
+  printf '%s\n' "$name"
+}
+
+if [[ -z "$executable_name" ]]; then
+  executable_name="$(default_executable_name "$tool_input")"
+fi
+
+if ! install_dir="$(mise where "$tool_input" 2>/dev/null)"; then
+  echo "Unable to resolve '$tool_input'. Install it first or pass the exact installed mise tool name." >&2
+  exit 1
+fi
+
+matches=()
+while IFS= read -r -d '' match; do
+  matches+=("$match")
+done < <(find "$install_dir" \( -type f -o -type l \) -name "$executable_name" -print0)
+
+if [[ "${#matches[@]}" -eq 0 ]]; then
+  echo "Could not find '$executable_name' under '$install_dir'." >&2
+  exit 1
+fi
+
+targets=()
+for match in "${matches[@]}"; do
+  if [[ "$match" == "$install_dir/bin/$executable_name" ]]; then
+    targets+=("$match")
+  fi
+done
+
+if [[ "${#targets[@]}" -eq 0 && "${#matches[@]}" -eq 1 ]]; then
+  targets=("${matches[0]}")
+fi
+
+if [[ "${#targets[@]}" -ne 1 ]]; then
+  echo "Found multiple '$executable_name' files under '$install_dir'. Refusing to chmod an ambiguous match:" >&2
+  printf '  %s\n' "${matches[@]}" >&2
+  exit 1
+fi
+
+chmod +x "${targets[0]}"
+
+echo "tool: $tool_input"
+echo "install dir: $install_dir"
+echo "executable: ${targets[0]}"
+echo "mode: +x"
