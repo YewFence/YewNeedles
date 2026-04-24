@@ -1,83 +1,138 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python
 #MISE description "Approve skipped dependency builds for a mise npm:* tool installed via aube"
 #USAGE arg "<tool>" help="Installed npm tool name or full mise spec, e.g. @larksuite/cli or npm:@larksuite/cli"
 #USAGE flag "--all" help="Approve all ignored builds without prompting"
 #USAGE flag "-r --rebuild" help="Run aube rebuild after approval"
 #USAGE flag "-n --dry-run" help="Resolve paths and show ignored builds without approving"
 
-set -euo pipefail
+from __future__ import annotations
 
-tool_input="${usage_tool?}"
-tool_spec="$tool_input"
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
 
-if [[ "$tool_spec" != npm:* ]]; then
-  tool_spec="npm:$tool_spec"
-fi
 
-if ! command -v aube >/dev/null 2>&1; then
-  echo "aube is not on PATH. Install it with: mise use aube@latest" >&2
-  exit 1
-fi
+def eprint(message: str) -> None:
+    print(message, file=sys.stderr)
 
-if ! install_dir="$(mise where "$tool_spec" 2>/dev/null)"; then
-  echo "Unable to resolve '$tool_spec'. Install it first or pass the exact installed npm: tool name." >&2
-  exit 1
-fi
 
-global_aube_dir="$install_dir/global-aube"
-if [[ ! -d "$global_aube_dir" ]]; then
-  echo "'$tool_spec' is installed at '$install_dir', but there is no global-aube directory." >&2
-  echo "This task only applies to npm tools installed by mise through aube." >&2
-  exit 1
-fi
+def is_true(name: str) -> bool:
+    return os.environ.get(name, "false") == "true"
 
-resolve_approve_dir() {
-  local dir="$1"
-  local entry
 
-  while IFS= read -r entry; do
-    if [[ -L "$entry" && -f "$entry/package.json" ]]; then
-      readlink -f "$entry"
-      return 0
-    fi
-  done < <(find "$dir" -mindepth 1 -maxdepth 1 -type l | sort)
+def normalize_tool_spec(tool_input: str) -> str:
+    if tool_input.startswith("npm:"):
+        return tool_input
+    return f"npm:{tool_input}"
 
-  while IFS= read -r entry; do
-    if [[ -d "$entry" && -f "$entry/package.json" && -f "$entry/aube-lock.yaml" ]]; then
-      readlink -f "$entry"
-      return 0
-    fi
-  done < <(find "$dir" -mindepth 1 -maxdepth 1 -type d | sort)
 
-  return 1
-}
+def run_streaming(args: list[str]) -> None:
+    result = subprocess.run(args, check=False)
+    if result.returncode != 0:
+        raise SystemExit(result.returncode)
 
-if ! approve_dir="$(resolve_approve_dir "$global_aube_dir")"; then
-  echo "Could not find an aube project under '$global_aube_dir'." >&2
-  exit 1
-fi
 
-echo "tool: $tool_spec"
-echo "install dir: $install_dir"
-echo "aube project: $approve_dir"
-echo
+def resolve_install_dir(tool_spec: str) -> Path:
+    result = subprocess.run(
+        ["mise", "where", tool_spec],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    if result.returncode != 0:
+        eprint(
+            f"Unable to resolve '{tool_spec}'. Install it first or pass the exact installed npm: tool name."
+        )
+        raise SystemExit(1)
 
-aube ignored-builds --dir "$approve_dir"
+    install_dir = result.stdout.strip()
+    if not install_dir:
+        eprint(
+            f"Unable to resolve '{tool_spec}'. Install it first or pass the exact installed npm: tool name."
+        )
+        raise SystemExit(1)
 
-if [[ "${usage_dry_run:-false}" == "true" ]]; then
-  exit 0
-fi
+    return Path(install_dir)
 
-approve_args=(approve-builds --dir "$approve_dir")
-if [[ "${usage_all:-false}" == "true" ]]; then
-  approve_args+=(--all)
-fi
 
-aube "${approve_args[@]}"
+def is_link_like(entry: Path) -> bool:
+    try:
+        if entry.is_symlink():
+            return True
 
-if [[ "${usage_rebuild:-false}" == "true" ]]; then
-  aube rebuild --dir "$approve_dir"
-else
-  echo
-  echo "Re-run with --rebuild if you want the approved scripts to execute now."
-fi
+        resolved = entry.resolve(strict=True)
+    except OSError:
+        return False
+
+    absolute = Path(os.path.abspath(entry))
+    return os.path.normcase(str(resolved)) != os.path.normcase(str(absolute))
+
+
+def resolve_approve_dir(global_aube_dir: Path) -> Path | None:
+    entries = sorted(global_aube_dir.iterdir(), key=lambda entry: entry.name)
+
+    # Prefer linked entries first so the task behaves like the original shell version.
+    for entry in entries:
+        if is_link_like(entry) and (entry / "package.json").is_file():
+            return entry.resolve(strict=True)
+
+    for entry in entries:
+        if (
+            entry.is_dir()
+            and (entry / "package.json").is_file()
+            and (entry / "aube-lock.yaml").is_file()
+        ):
+            return entry.resolve(strict=True)
+
+    return None
+
+
+def main() -> None:
+    tool_input = os.environ["usage_tool"]
+    tool_spec = normalize_tool_spec(tool_input)
+
+    if shutil.which("aube") is None:
+        eprint("aube is not on PATH. Install it with: mise use aube@latest")
+        raise SystemExit(1)
+
+    install_dir = resolve_install_dir(tool_spec)
+    global_aube_dir = install_dir / "global-aube"
+
+    if not global_aube_dir.is_dir():
+        eprint(f"'{tool_spec}' is installed at '{install_dir}', but there is no global-aube directory.")
+        eprint("This task only applies to npm tools installed by mise through aube.")
+        raise SystemExit(1)
+
+    approve_dir = resolve_approve_dir(global_aube_dir)
+    if approve_dir is None:
+        eprint(f"Could not find an aube project under '{global_aube_dir}'.")
+        raise SystemExit(1)
+
+    print(f"tool: {tool_spec}")
+    print(f"install dir: {install_dir}")
+    print(f"aube project: {approve_dir}")
+    print()
+
+    run_streaming(["aube", "ignored-builds", "--dir", str(approve_dir)])
+
+    if is_true("usage_dry_run"):
+        return
+
+    approve_args = ["aube", "approve-builds", "--dir", str(approve_dir)]
+    if is_true("usage_all"):
+        approve_args.append("--all")
+    run_streaming(approve_args)
+
+    if is_true("usage_rebuild"):
+        run_streaming(["aube", "rebuild", "--dir", str(approve_dir)])
+        return
+
+    print()
+    print("Re-run with --rebuild if you want the approved scripts to execute now.")
+
+
+if __name__ == "__main__":
+    main()
