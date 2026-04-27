@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+#MISE description "Initialize mise, Codex, cc-switch, and WebDAV agent config"
+
+set -euo pipefail
+
+prompt_required() {
+  local prompt="$1"
+  local value=""
+
+  while [[ -z "$value" ]]; do
+    printf '%s' "$prompt" >&2
+    read -r value
+  done
+
+  printf '%s\n' "$value"
+}
+
+prompt_password() {
+  local prompt="$1"
+  local value=""
+
+  while [[ -z "$value" ]]; do
+    printf '%s' "$prompt" >&2
+    read -r -s value
+    printf '\n' >&2
+  done
+
+  printf '%s\n' "$value"
+}
+
+webdav_base_url="$(prompt_required 'WebDAV base URL: ')"
+webdav_username="$(prompt_required 'WebDAV username: ')"
+webdav_password="$(prompt_password 'WebDAV password: ')"
+
+curl https://mise.run | sh
+
+if ! grep -Fq 'eval "$(~/.local/bin/mise activate bash)"' "$HOME/.bashrc"; then
+  printf '%s\n' 'eval "$(~/.local/bin/mise activate bash)"' >> "$HOME/.bashrc"
+fi
+
+eval "$(~/.local/bin/mise activate bash)"
+
+mise use -g codex
+sudo dnf install -y git
+mise use -g github:saladday/cc-switch-cli
+mise fix-x github:saladday/cc-switch-cli cc-switch
+mise x -- cc-switch config webdav set \
+  --base-url "$webdav_base_url" \
+  --username "$webdav_username" \
+  --password "$webdav_password" \
+  --enable
+mise x -- cc-switch config webdav download
+
+printf 'done, need to run "source ~/.bashrc" mannully'
