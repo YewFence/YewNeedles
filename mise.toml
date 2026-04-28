@@ -1,3 +1,23 @@
 [tools]
 python = "latest"
 uv = "latest"
+
+[tasks."agent-init"]
+description = "初始化 mise、Codex、cc-switch 并配置 WebDAV"
+file = "mise-tasks/agent-init"
+
+[tasks."fix-x"]
+description = "为 mise 安装工具的可执行文件补充 +x 权限"
+file = "mise-tasks/fix-x"
+
+[tasks."gh-auth-setup-git-local"]
+description = "用 ~/.gitconfig.local 执行 gh auth setup-git 并检查 include 配置"
+file = "mise-tasks/gh-auth-setup-git-local"
+
+[tasks."npm-approve-builds"]
+description = "批准 npm 工具被 aube 跳过的构建脚本并可选重建"
+file = "mise-tasks/npm-approve-builds"
+
+[tasks."shizuku"]
+description = "通过 adb 启动平板的 Shizuku 服务"
+file = "mise-tasks/shizuku"
