@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description "start my pad shizuku service"
+
+adb shell /data/app/~~8V572o4Jjw5Xpa033E28Cg==/moe.shizuku.privileged.api-C_e1Ah8BjHwTsNSIGvl9LA==/lib/arm64/libshizuku.so
