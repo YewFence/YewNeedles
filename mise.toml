@@ -18,6 +18,10 @@ file = "mise-tasks/gh-auth-setup-git-local"
 description = "批准 npm 工具被 aube 跳过的构建脚本并可选重建"
 file = "mise-tasks/npm-approve-builds"
 
+[tasks."rime-ice"]
+description = "通过 plum 为 fcitx5-rime 安装雾凇拼音"
+file = "mise-tasks/rime-ice"
+
 [tasks."shizuku"]
 description = "通过 adb 启动平板的 Shizuku 服务"
 file = "mise-tasks/shizuku"

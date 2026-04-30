@@ -1,0 +1,126 @@
+#!/usr/bin/env python
+#MISE description "Clone or update rime/plum and install iDvel/rime-ice for fcitx5-rime"
+#USAGE flag "-n --dry-run" help="Show what would run without cloning, pulling, or installing"
+
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+
+PLUM_REPO = "https://github.com/rime/plum.git"
+PLUM_DIR = Path.home() / ".local" / "src" / "plum"
+RIME_PACKAGE = "iDvel/rime-ice"
+
+
+def eprint(message: str) -> None:
+    print(message, file=sys.stderr)
+
+
+def is_true(name: str) -> bool:
+    return os.environ.get(name, "false") == "true"
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Clone or update rime/plum and install iDvel/rime-ice for fcitx5-rime."
+    )
+    parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="show what would run without cloning, pulling, or installing",
+    )
+    return parser.parse_args()
+
+
+def require_command(name: str, install_hint: str | None = None) -> None:
+    if shutil.which(name) is not None:
+        return
+
+    if install_hint:
+        eprint(f"{name} is not on PATH. {install_hint}")
+    else:
+        eprint(f"{name} is not on PATH.")
+    raise SystemExit(1)
+
+
+def run(args: list[str], *, env: dict[str, str] | None = None, dry_run: bool = False) -> None:
+    print("+ " + " ".join(args))
+    if dry_run:
+        return
+
+    result = subprocess.run(args, check=False, env=env)
+    if result.returncode != 0:
+        raise SystemExit(result.returncode)
+
+
+def capture(args: list[str]) -> str:
+    result = subprocess.run(
+        args,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if result.returncode != 0:
+        error = result.stderr.strip() or result.stdout.strip() or "command failed"
+        eprint(error)
+        raise SystemExit(result.returncode)
+
+    return result.stdout.strip()
+
+
+def ensure_plum_checkout(*, dry_run: bool) -> None:
+    if not PLUM_DIR.exists():
+        if not dry_run:
+            PLUM_DIR.parent.mkdir(parents=True, exist_ok=True)
+        run(["git", "clone", PLUM_REPO, str(PLUM_DIR)], dry_run=dry_run)
+        return
+
+    if not PLUM_DIR.is_dir():
+        eprint(f"{PLUM_DIR} exists but is not a directory.")
+        raise SystemExit(1)
+
+    git_dir = PLUM_DIR / ".git"
+    if not git_dir.exists():
+        eprint(f"{PLUM_DIR} exists but is not a git checkout.")
+        raise SystemExit(1)
+
+    origin_url = capture(["git", "-C", str(PLUM_DIR), "remote", "get-url", "origin"])
+    if origin_url not in {PLUM_REPO, "git@github.com:rime/plum.git"}:
+        eprint(f"{PLUM_DIR} has unexpected origin URL: {origin_url}")
+        raise SystemExit(1)
+
+    run(["git", "-C", str(PLUM_DIR), "pull", "--ff-only"], dry_run=dry_run)
+
+
+def install_rime_ice(*, dry_run: bool) -> None:
+    installer = PLUM_DIR / "rime-install"
+    if not dry_run and not installer.is_file():
+        eprint(f"Missing installer: {installer}")
+        raise SystemExit(1)
+
+    env = os.environ.copy()
+    env["rime_frontend"] = "fcitx5-rime"
+    run(["bash", str(installer), RIME_PACKAGE], env=env, dry_run=dry_run)
+
+
+def main() -> None:
+    args = parse_args()
+    dry_run = args.dry_run or is_true("usage_dry_run")
+
+    require_command("fcitx5", "Install fcitx5 first, then re-run this task.")
+    require_command("git")
+    require_command("bash")
+
+    ensure_plum_checkout(dry_run=dry_run)
+    install_rime_ice(dry_run=dry_run)
+
+
+if __name__ == "__main__":
+    main()
