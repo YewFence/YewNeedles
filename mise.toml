@@ -1,4 +1,5 @@
 [tools]
+gh = "latest"
 python = "latest"
 uv = "latest"
 
@@ -13,6 +14,10 @@ file = "mise-tasks/fix-x"
 [tasks."gh-auth-setup-git-local"]
 description = "用 ~/.gitconfig.local 执行 gh auth setup-git 并检查 include 配置"
 file = "mise-tasks/gh-auth-setup-git-local"
+
+[tasks."gh-install-latest-rpm"]
+description = "在 Fedora/RHEL 系发行版安装 GitHub 最新 release 的 RPM"
+file = "mise-tasks/gh-install-latest-rpm"
 
 [tasks."npm-approve-builds"]
 description = "批准 npm 工具被 aube 跳过的构建脚本并可选重建"
