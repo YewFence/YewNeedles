@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+#MISE description "Back up /boot and /boot/efi on a Fedora laptop"
+
+set -euo pipefail
+
+require_command() {
+  local name="$1"
+  local install_hint="${2:-}"
+
+  if command -v "$name" >/dev/null 2>&1; then
+    return
+  fi
+
+  if [[ -n "$install_hint" ]]; then
+    echo "$name is not on PATH. $install_hint" >&2
+  else
+    echo "$name is not on PATH." >&2
+  fi
+  exit 1
+}
+
+require_fedora() {
+  if [[ ! -r /etc/os-release ]]; then
+    echo "Missing /etc/os-release. This task only supports Fedora." >&2
+    exit 1
+  fi
+
+  local ID=""
+  local NAME=""
+  local PRETTY_NAME=""
+
+  # shellcheck disable=SC1091
+  . /etc/os-release
+
+  if [[ "$ID" != "fedora" ]]; then
+    echo "${PRETTY_NAME:-${NAME:-This system}} is not Fedora. This task is intended for a Fedora laptop." >&2
+    exit 1
+  fi
+}
+
+require_mountpoint() {
+  local mountpoint="$1"
+
+  if findmnt --mountpoint "$mountpoint" >/dev/null 2>&1; then
+    return
+  fi
+
+  echo "$mountpoint is not mounted. Mount it before running this task." >&2
+  exit 1
+}
+
+backup="$HOME/boot-backup-$(date +%F)"
+
+require_fedora
+require_command sudo
+require_command rsync "Install it with: sudo dnf install rsync"
+require_command efibootmgr "Install it with: sudo dnf install efibootmgr"
+require_command lsblk
+require_command findmnt
+
+require_mountpoint /boot
+require_mountpoint /boot/efi
+
+echo "Backup directory: $backup"
+echo "+ mkdir -p $backup"
+mkdir -p "$backup"
+
+echo "+ sudo rsync -aHAX --numeric-ids /boot/ $backup/boot/"
+sudo rsync -aHAX --numeric-ids /boot/ "$backup/boot/"
+
+echo "+ sudo efibootmgr -v > $backup/efibootmgr.txt"
+sudo efibootmgr -v > "$backup/efibootmgr.txt"
+
+echo "+ lsblk -f > $backup/lsblk.txt"
+lsblk -f > "$backup/lsblk.txt"
+
+echo "+ findmnt --submounts /boot > $backup/findmnt.txt"
+findmnt --submounts /boot > "$backup/findmnt.txt"
+
+echo "Backup complete: $backup"

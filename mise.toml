@@ -19,6 +19,10 @@ file = "mise-tasks/gh-auth-setup-git-local"
 description = "在 Fedora/RHEL 系发行版安装 GitHub 最新 release 的 RPM"
 file = "mise-tasks/gh-install-latest-rpm"
 
+[tasks."fedora-boot-backup"]
+description = "备份 Fedora 笔记本的 /boot 和 /boot/efi"
+file = "mise-tasks/fedora-boot-backup"
+
 [tasks."npm-approve-builds"]
 description = "批准 npm 工具被 aube 跳过的构建脚本并可选重建"
 file = "mise-tasks/npm-approve-builds"
