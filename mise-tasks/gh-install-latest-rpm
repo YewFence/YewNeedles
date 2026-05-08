@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #MISE description "Install the latest GitHub release RPM on Fedora/RHEL family systems"
 #USAGE arg "<repo>" help="GitHub repository in owner/name form"
-#USAGE flag "-p --pattern <pattern>" help="Substring used to choose one RPM asset when a release has multiple RPMs"
+#USAGE flag "-p --pattern <pattern>" help="Substring used before automatic architecture filtering when a release has multiple RPMs"
 #USAGE flag "-r --retries <retries>" help="Download retry count, defaults to 3"
 #USAGE flag "-n --dry-run" help="Show what would be installed without downloading or installing"
 
@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 import os
+import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -26,6 +28,43 @@ RED_HAT_FAMILY_IDS = {
     "rocky",
     "scientific",
 }
+
+ARCH_ALIASES = {
+    "amd64": "x64",
+    "x64": "x64",
+    "x86_64": "x64",
+    "aarch64": "arm64",
+    "arm64": "arm64",
+    "armhfp": "arm",
+    "armv6hl": "arm",
+    "armv6l": "arm",
+    "armv7hl": "arm",
+    "armv7l": "arm",
+    "armv8hl": "arm",
+    "armv8l": "arm",
+}
+
+ARCH_ASSET_PATTERNS = {
+    "x64": re.compile(
+        r"(^|[^A-Za-z0-9])(x86_64|amd64|x64)([^A-Za-z0-9]|$)",
+        re.IGNORECASE,
+    ),
+    "arm64": re.compile(
+        r"(^|[^A-Za-z0-9])(aarch64|arm64)([^A-Za-z0-9]|$)",
+        re.IGNORECASE,
+    ),
+    "arm": re.compile(
+        r"(^|[^A-Za-z0-9])"
+        r"(armhfp|armv6hl|armv6l|armv7hl|armv7l|armv8hl|armv8l|arm)"
+        r"([^A-Za-z0-9]|$)",
+        re.IGNORECASE,
+    ),
+}
+
+NOARCH_ASSET_PATTERN = re.compile(
+    r"(^|[^A-Za-z0-9])noarch([^A-Za-z0-9]|$)",
+    re.IGNORECASE,
+)
 
 
 def eprint(message: str) -> None:
@@ -162,6 +201,38 @@ def rpm_assets(release: dict[str, object]) -> list[dict[str, object]]:
     return rpms
 
 
+def current_arch() -> tuple[str, str] | None:
+    machine = platform.machine().lower()
+    arch = ARCH_ALIASES.get(machine)
+    if arch is None:
+        return None
+
+    return arch, machine
+
+
+def asset_name(asset: dict[str, object]) -> str:
+    return str(asset.get("name", ""))
+
+
+def matches_arch(asset: dict[str, object], arch: str) -> bool:
+    pattern = ARCH_ASSET_PATTERNS.get(arch)
+    return bool(pattern and pattern.search(asset_name(asset)))
+
+
+def is_noarch_asset(asset: dict[str, object]) -> bool:
+    return bool(NOARCH_ASSET_PATTERN.search(asset_name(asset)))
+
+
+def has_arch_marker(asset: dict[str, object]) -> bool:
+    name = asset_name(asset)
+    return any(pattern.search(name) for pattern in ARCH_ASSET_PATTERNS.values())
+
+
+def eprint_assets(assets: list[dict[str, object]]) -> None:
+    for asset in assets:
+        eprint(f"  {asset.get('name', '<unnamed>')}")
+
+
 def choose_rpm_asset(assets: list[dict[str, object]], pattern: str) -> dict[str, object]:
     if pattern:
         matches = [asset for asset in assets if pattern in str(asset.get("name", ""))]
@@ -170,12 +241,27 @@ def choose_rpm_asset(assets: list[dict[str, object]], pattern: str) -> dict[str,
             raise SystemExit(1)
         assets = matches
 
+    arch = current_arch()
+    if arch is not None:
+        arch_name, machine = arch
+        arch_matches = [asset for asset in assets if matches_arch(asset, arch_name)]
+        if arch_matches:
+            assets = arch_matches
+        else:
+            noarch_matches = [asset for asset in assets if is_noarch_asset(asset)]
+            if noarch_matches:
+                assets = noarch_matches
+            elif any(has_arch_marker(asset) for asset in assets):
+                eprint(f"No RPM release asset matched current architecture '{arch_name}' from machine '{machine}'.")
+                eprint("Available RPM release assets:")
+                eprint_assets(assets)
+                raise SystemExit(1)
+
     if len(assets) == 1:
         return assets[0]
 
     eprint("Found multiple RPM release assets. Re-run with --pattern to choose one:")
-    for asset in assets:
-        eprint(f"  {asset.get('name', '<unnamed>')}")
+    eprint_assets(assets)
     raise SystemExit(1)
 
 
