@@ -1,0 +1,32 @@
+name: volguard-volume-sftp
+
+services:
+  sftp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: volguard-volume-sftp:local
+    init: true
+    labels:
+      dev.volguard.tool: volume-sftp
+      dev.volguard.volume-sftp: "true"
+    environment:
+      SFTP_USER: ${SFTP_USER:-volguard}
+      SFTP_PASSWORD: ${SFTP_PASSWORD:?set SFTP_PASSWORD}
+      SFTP_UID: ${SFTP_UID:-1000}
+      SFTP_GID: ${SFTP_GID:-1000}
+      TZ: ${TZ:-UTC}
+    ports:
+      - "${SFTP_BIND_ADDRESS:-127.0.0.1}:${SFTP_PORT:-2222}:22"
+    volumes:
+      - type: volume
+        source: target-volume
+        target: /home/${SFTP_USER:-volguard}/volume
+        read_only: ${VOLUME_READ_ONLY:-true}
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  target-volume:
+    name: ${VOLUME_NAME:?set VOLUME_NAME}
+    external: true

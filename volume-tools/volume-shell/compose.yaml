@@ -1,0 +1,33 @@
+name: volguard-volume-shell
+
+services:
+  shell:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        EXTRA_APT_PACKAGES: ${EXTRA_APT_PACKAGES:-}
+    image: volguard-volume-shell:local
+    init: true
+    stdin_open: true
+    tty: true
+    working_dir: /volume
+    command:
+      - /bin/bash
+    labels:
+      dev.volguard.tool: volume-shell
+      dev.volguard.volume-shell: "true"
+    environment:
+      TZ: ${TZ:-UTC}
+    volumes:
+      - type: volume
+        source: target-volume
+        target: /volume
+        read_only: ${VOLUME_READ_ONLY:-true}
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  target-volume:
+    name: ${VOLUME_NAME:?set VOLUME_NAME}
+    external: true

@@ -34,3 +34,11 @@ file = "mise-tasks/rime-ice"
 [tasks."shizuku"]
 description = "通过 adb 启动平板的 Shizuku 服务"
 file = "mise-tasks/shizuku"
+
+[tasks."ops:shell-volumes"]
+description = "打开带有简单工具的 shell 以简单管理指定的 named volume"
+run = "./volume-tools/volumes-shell/open.sh"
+
+[tasks."ops:sftp-volumes"]
+description = "将指定的 named volume 暴露为 sftp 服务"
+run = "./volume-tools/volumes-sftp/open.sh"
