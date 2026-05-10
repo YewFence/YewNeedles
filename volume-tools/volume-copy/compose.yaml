@@ -1,0 +1,29 @@
+name: volguard-volume-copy
+
+services:
+  copy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: volguard-volume-copy:local
+    init: true
+    labels:
+      dev.volguard.tool: volume-copy
+      dev.volguard.volume-copy: "true"
+    environment:
+      COPY_DIRECTION: ${COPY_DIRECTION:?set COPY_DIRECTION}
+      COPY_DELETE: ${COPY_DELETE:-false}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - type: bind
+        source: ${HOST_PATH:?set HOST_PATH}
+        target: /host-path
+      - type: volume
+        source: target-volume
+        target: /volume
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  target-volume:
+    name: ${VOLUME_NAME:?set VOLUME_NAME}

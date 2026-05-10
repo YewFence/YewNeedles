@@ -37,8 +37,12 @@ file = "mise-tasks/shizuku"
 
 [tasks."ops:shell-volumes"]
 description = "打开带有简单工具的 shell 以简单管理指定的 named volume"
-run = "./volume-tools/volumes-shell/open.sh"
+run = "./volume-tools/volume-shell/open.sh"
 
 [tasks."ops:sftp-volumes"]
 description = "将指定的 named volume 暴露为 sftp 服务"
-run = "./volume-tools/volumes-sftp/open.sh"
+run = "./volume-tools/volume-sftp/open.sh"
+
+[tasks."ops:copy-volume"]
+description = "在宿主机路径和 named volume 之间同步内容"
+run = "./volume-tools/volume-copy/open.sh"
