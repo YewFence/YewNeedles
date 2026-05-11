@@ -24,7 +24,7 @@ description = "备份 Fedora 笔记本的 /boot 和 /boot/efi"
 file = "mise-tasks/fedora-boot-backup"
 
 [tasks."npm-approve-builds"]
-description = "批准 npm 工具被 aube 跳过的构建脚本并可选重建"
+description = "批准 npm 工具被 pnpm 跳过的构建脚本并可选重建"
 file = "mise-tasks/npm-approve-builds"
 
 [tasks."rime-ice"]

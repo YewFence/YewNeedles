@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-#MISE description "Approve skipped dependency builds for a mise npm:* tool installed via aube"
+#MISE description "Approve skipped dependency builds for a mise npm:* tool installed via pnpm"
 #USAGE arg "<tool>" help="Installed npm tool name or full mise spec, e.g. @larksuite/cli or npm:@larksuite/cli"
 #USAGE flag "--all" help="Approve all ignored builds without prompting"
-#USAGE flag "-r --rebuild" help="Run aube rebuild after approval"
+#USAGE flag "-r --rebuild" help="Run pnpm install after approval to execute approved builds"
 #USAGE flag "-n --dry-run" help="Resolve paths and show ignored builds without approving"
 
 from __future__ import annotations
@@ -29,6 +29,8 @@ def normalize_tool_spec(tool_input: str) -> str:
 
 
 def run_streaming(args: list[str]) -> None:
+    sys.stdout.flush()
+    sys.stderr.flush()
     result = subprocess.run(args, check=False)
     if result.returncode != 0:
         raise SystemExit(result.returncode)
@@ -58,34 +60,34 @@ def resolve_install_dir(tool_spec: str) -> Path:
     return Path(install_dir)
 
 
-def is_link_like(entry: Path) -> bool:
-    try:
-        if entry.is_symlink():
-            return True
-
-        resolved = entry.resolve(strict=True)
-    except OSError:
-        return False
-
-    absolute = Path(os.path.abspath(entry))
-    return os.path.normcase(str(resolved)) != os.path.normcase(str(absolute))
+def is_pnpm_project_dir(entry: Path) -> bool:
+    return (entry / "package.json").is_file() and (entry / "pnpm-lock.yaml").is_file()
 
 
-def resolve_approve_dir(global_aube_dir: Path) -> Path | None:
-    entries = sorted(global_aube_dir.iterdir(), key=lambda entry: entry.name)
+def has_pnpm_install_state(entry: Path) -> bool:
+    return (
+        (entry / "node_modules" / ".modules.yaml").is_file()
+        or (entry / ".pnpm").is_dir()
+        or (entry / "node_modules" / ".pnpm").is_dir()
+    )
 
-    # Prefer linked entries first so the task behaves like the original shell version.
-    for entry in entries:
-        if is_link_like(entry) and (entry / "package.json").is_file():
-            return entry.resolve(strict=True)
 
-    for entry in entries:
-        if (
-            entry.is_dir()
-            and (entry / "package.json").is_file()
-            and (entry / "aube-lock.yaml").is_file()
-        ):
-            return entry.resolve(strict=True)
+def resolve_pnpm_project_dir(install_dir: Path) -> Path | None:
+    candidates: list[Path] = []
+
+    if is_pnpm_project_dir(install_dir):
+        candidates.append(install_dir)
+
+    for entry in sorted(install_dir.iterdir(), key=lambda item: item.name):
+        if entry.is_dir() and is_pnpm_project_dir(entry):
+            candidates.append(entry)
+
+    if len(candidates) == 1:
+        return candidates[0].resolve(strict=True)
+
+    stateful_candidates = [entry for entry in candidates if has_pnpm_install_state(entry)]
+    if len(stateful_candidates) == 1:
+        return stateful_candidates[0].resolve(strict=True)
 
     return None
 
@@ -94,40 +96,51 @@ def main() -> None:
     tool_input = os.environ["usage_tool"]
     tool_spec = normalize_tool_spec(tool_input)
 
-    if shutil.which("aube") is None:
-        eprint("aube is not on PATH. Install it with: mise use aube@latest")
+    if shutil.which("pnpm") is None:
+        eprint("pnpm is not on PATH. Install it with: mise use pnpm@latest")
         raise SystemExit(1)
 
     install_dir = resolve_install_dir(tool_spec)
-    global_aube_dir = install_dir / "global-aube"
 
-    if not global_aube_dir.is_dir():
-        eprint(f"'{tool_spec}' is installed at '{install_dir}', but there is no global-aube directory.")
-        eprint("This task only applies to npm tools installed by mise through aube.")
-        raise SystemExit(1)
-
-    approve_dir = resolve_approve_dir(global_aube_dir)
+    approve_dir = resolve_pnpm_project_dir(install_dir)
     if approve_dir is None:
-        eprint(f"Could not find an aube project under '{global_aube_dir}'.")
+        eprint(f"Could not find a pnpm project under '{install_dir}'.")
+        eprint("This task only applies to npm tools installed by mise through pnpm.")
         raise SystemExit(1)
 
     print(f"tool: {tool_spec}")
     print(f"install dir: {install_dir}")
-    print(f"aube project: {approve_dir}")
+    print(f"pnpm project: {approve_dir}")
     print()
 
-    run_streaming(["aube", "ignored-builds", "--dir", str(approve_dir)])
+    run_streaming(["pnpm", "--dir", str(approve_dir), "ignored-builds"])
 
     if is_true("usage_dry_run"):
         return
 
-    approve_args = ["aube", "approve-builds", "--dir", str(approve_dir)]
+    approve_args = ["pnpm", "--dir", str(approve_dir), "approve-builds"]
     if is_true("usage_all"):
         approve_args.append("--all")
     run_streaming(approve_args)
 
     if is_true("usage_rebuild"):
-        run_streaming(["aube", "rebuild", "--dir", str(approve_dir)])
+        # Mise's npm shims point at <project>/.pnpm, while pnpm normally reinstalls
+        # into node_modules/.pnpm. Keep the virtual store where the shim loads from.
+        run_streaming(
+            [
+                "pnpm",
+                "--dir",
+                str(approve_dir),
+                "install",
+                "--force",
+                "--offline",
+                "--frozen-lockfile",
+                "--ignore-scripts=false",
+                "--virtual-store-dir",
+                ".pnpm",
+                "--config.confirm-modules-purge=false",
+            ]
+        )
         return
 
     print()
