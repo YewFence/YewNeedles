@@ -1,7 +1,6 @@
 #!/usr/bin/env sh
 set -eu
 
-: "${COPY_DIRECTION:?set COPY_DIRECTION}"
 : "${COPY_DELETE:=false}"
 
 sync_dir() {
@@ -31,15 +30,4 @@ sync_dir() {
 	rsync -aH --numeric-ids $delete_arg "$source_dir"/ "$target_dir"/
 }
 
-case "$COPY_DIRECTION" in
-	path-to-volume)
-	sync_dir /host-path /volume
-	;;
-	volume-to-path)
-	sync_dir /volume /host-path
-	;;
-	*)
-		printf '%s\n' "invalid COPY_DIRECTION, use path-to-volume or volume-to-path" >&2
-		exit 2
-		;;
-esac
+sync_dir /source /target

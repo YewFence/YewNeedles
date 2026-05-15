@@ -1,12 +1,12 @@
 # Volguard Tools
 
-小工具，用于手动打开一个 Docker 命名卷，临时查看、编辑、通过 SFTP 访问里面的文件，或者在宿主机路径和命名卷之间同步内容。
+小工具，用于手动打开一个 Docker 命名卷，临时查看、编辑、通过 SFTP 访问里面的文件，或者在宿主机目录和命名卷之间同步内容。
 
 这些模板默认都按只读方式挂载目标卷。需要修改文件时，必须显式传入 `--rw` 或 `--write`。
 
 ## 前置条件
 
-需要本机能运行 Docker，并且支持 `docker compose` 命令。`volume-shell` 和 `volume-sftp` 的目标 Docker volume 必须已经存在，因为这两个模板都把卷声明为 external volume，不会自动创建新卷。`volume-copy` 从宿主机路径复制到命名卷时会按 Docker 默认行为自动创建目标卷，从命名卷复制回宿主机路径时会先要求源卷已经存在。
+需要本机能运行 Docker，并且支持 `docker compose` 命令。`volume-shell` 和 `volume-sftp` 的目标 Docker volume 必须已经存在，因为这两个模板都把卷声明为 external volume，不会自动创建新卷。`volume-copy` 会要求源 Docker volume 已经存在，目标 Docker volume 不存在时会按 Docker 默认行为自动创建；源宿主机目录必须已经存在，目标宿主机目录不存在时会自动创建。
 
 可以先确认卷是否存在。
 
@@ -82,26 +82,44 @@ volume-tools/volume-sftp/open.sh logs
 volume-tools/volume-sftp/open.sh stop
 ```
 
-## 在路径和命名卷之间复制
+## 在目录和命名卷之间复制
 
-`volume-copy` 会启动一个一次性 rsync 容器，并把宿主机目录和 Docker volume 分别挂载进去。默认是合并复制，不删除目标中多出来的文件；需要目标和来源完全一致时，可以传入 `--delete`。
+`volume-copy` 会启动一个一次性 rsync 容器，并把源和目标分别挂载进去。参数会自动识别，已有宿主机目录会作为 bind mount，其他普通名称会作为 Docker 命名卷；目标是 `.`、`..`、`~`、以 `./`、`../`、`/`、`~/` 开头，或包含 `/`、`\` 的值时，会作为宿主机路径处理并自动创建目录。默认是合并复制，不删除目标中多出来的文件；需要目标和来源完全一致时，可以传入 `--delete`。
 
-把宿主机路径复制到指定命名卷。如果卷不存在，Docker 会自动创建它。
+把宿主机目录复制到指定命名卷。如果目标卷不存在，Docker 会自动创建它。
 
 ```sh
-volume-tools/volume-copy/open.sh path-to-volume ./data app_data
+mise run ops:copy-volume -- ./data app_data
 ```
 
-把指定命名卷复制回宿主机路径。源卷必须已经存在，宿主机路径也必须是已有目录。
+把指定命名卷复制回宿主机目录。源卷必须已经存在，目标目录不存在时会自动创建。
 
 ```sh
-volume-tools/volume-copy/open.sh volume-to-path app_data ./data
+mise run ops:copy-volume -- app_data ./data
+```
+
+把一个命名卷复制到另一个命名卷，可以用来重命名命名卷。
+
+```sh
+mise run ops:copy-volume -- app_data app_data_new
+```
+
+在两个宿主机目录之间复制。
+
+```sh
+mise run ops:copy-volume -- ./data ./data-copy
+```
+
+当名称刚好和当前目录里的文件夹重名时，可以用 `volume:` 或 `path:` 前缀消除歧义。
+
+```sh
+mise run ops:copy-volume -- volume:app_data path:./data
 ```
 
 让目标目录和来源目录保持一致，并删除目标中来源没有的文件。
 
 ```sh
-volume-tools/volume-copy/open.sh path-to-volume ./data app_data --delete
+mise run ops:copy-volume -- ./data app_data --delete
 ```
 
 ## 安全边界
@@ -125,5 +143,5 @@ SFTP 默认绑定到 `127.0.0.1`，只适合本机访问。如果要让局域网
 | `volume-sftp/open.sh` | 启动、停止、查看 SFTP 容器的便捷脚本。 |
 | `volume-copy/compose.yaml` | 路径和命名卷同步的一次性容器 Compose 模板。 |
 | `volume-copy/Dockerfile` | 基于 Alpine 和 rsync 的同步镜像。 |
-| `volume-copy/entrypoint.sh` | 选择同步方向并执行 rsync 的入口脚本。 |
-| `volume-copy/open.sh` | 启动同步容器的便捷脚本。 |
+| `volume-copy/entrypoint.sh` | 执行 rsync 的容器入口脚本。 |
+| `volume-copy/volume_copy.py` | 解析源和目标并启动同步容器的便捷脚本。 |

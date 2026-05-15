@@ -48,5 +48,5 @@ description = "将指定的 named volume 暴露为 sftp 服务"
 run = "./volume-tools/volume-sftp/open.sh"
 
 [tasks."ops:copy-volume"]
-description = "在宿主机路径和 named volume 之间同步内容"
-run = "./volume-tools/volume-copy/open.sh"
+description = "在宿主机目录和 Docker 命名卷之间同步内容"
+file = "volume-tools/volume-copy/volume_copy.py"

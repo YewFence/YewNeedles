@@ -11,19 +11,23 @@ services:
       dev.volguard.tool: volume-copy
       dev.volguard.volume-copy: "true"
     environment:
-      COPY_DIRECTION: ${COPY_DIRECTION:?set COPY_DIRECTION}
       COPY_DELETE: ${COPY_DELETE:-false}
       TZ: ${TZ:-UTC}
     volumes:
-      - type: bind
-        source: ${HOST_PATH:?set HOST_PATH}
-        target: /host-path
-      - type: volume
-        source: target-volume
-        target: /volume
+      - type: ${SOURCE_MOUNT_TYPE:?set SOURCE_MOUNT_TYPE}
+        source: ${SOURCE_MOUNT_SOURCE:?set SOURCE_MOUNT_SOURCE}
+        target: /source
+        read_only: true
+      - type: ${TARGET_MOUNT_TYPE:?set TARGET_MOUNT_TYPE}
+        source: ${TARGET_MOUNT_SOURCE:?set TARGET_MOUNT_SOURCE}
+        target: /target
     security_opt:
       - no-new-privileges:true
 
 volumes:
+  source-volume:
+    external: ${SOURCE_VOLUME_EXTERNAL:-false}
+    name: ${SOURCE_VOLUME_NAME:-volguard-volume-copy-unused-source}
   target-volume:
-    name: ${VOLUME_NAME:?set VOLUME_NAME}
+    external: ${TARGET_VOLUME_EXTERNAL:-false}
+    name: ${TARGET_VOLUME_NAME:-volguard-volume-copy-unused-target}
