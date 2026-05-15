@@ -27,6 +27,10 @@ file = "mise-tasks/fedora-boot-backup"
 description = "批准 npm 工具被 pnpm 跳过的构建脚本并可选重建"
 file = "mise-tasks/npm-approve-builds"
 
+[tasks."jjpush"]
+description = "将指定 bookmark 指向上一个 change 并执行 jj git push"
+file = "mise-tasks/jjpush"
+
 [tasks."rime-ice"]
 description = "通过 plum 为 fcitx5-rime 安装雾凇拼音"
 file = "mise-tasks/rime-ice"
