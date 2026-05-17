@@ -12,13 +12,17 @@ services:
       dev.volguard.volume-sftp: "true"
     environment:
       SFTP_USER: ${SFTP_USER:-volguard}
-      SFTP_PASSWORD: ${SFTP_PASSWORD:?set SFTP_PASSWORD}
       SFTP_UID: ${SFTP_UID:-1000}
       SFTP_GID: ${SFTP_GID:-1000}
+      SFTP_AUTHORIZED_KEY_PATH: /run/volguard/authorized_key.pub
       TZ: ${TZ:-UTC}
     ports:
       - "${SFTP_BIND_ADDRESS:-127.0.0.1}:${SFTP_PORT:-2222}:22"
     volumes:
+      - type: bind
+        source: ${SFTP_AUTHORIZED_KEY_FILE:-${HOME}/.ssh/authorized_keys}
+        target: /run/volguard/authorized_key.pub
+        read_only: true
       - type: volume
         source: target-volume
         target: /home/${SFTP_USER:-volguard}/volume
