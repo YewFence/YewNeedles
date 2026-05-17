@@ -50,3 +50,7 @@ run = "./volume-tools/volume-sftp/open.sh"
 [tasks."ops:copy-volume"]
 description = "在宿主机目录和 Docker 命名卷之间同步内容"
 file = "volume-tools/volume-copy/volume_copy.py"
+
+[tasks."ops:relabel-volume"]
+description = "原地重建 Docker 命名卷并更新它的 labels"
+file = "volume-tools/volume-relabel/volume_relabel.py"

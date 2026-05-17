@@ -1,0 +1,29 @@
+name: volguard-volume-relabel
+
+services:
+  relabel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: volguard-volume-relabel:local
+    init: true
+    labels:
+      dev.volguard.tool: volume-relabel
+      dev.volguard.volume-relabel: "true"
+    environment:
+      VOLUME_NAME: ${VOLUME_NAME:?set VOLUME_NAME}
+      VOLUME_LABELS_SET: ${VOLUME_LABELS_SET:-}
+      VOLUME_LABELS_SET_JSON: ${VOLUME_LABELS_SET_JSON:-}
+      VOLUME_LABELS_REMOVE: ${VOLUME_LABELS_REMOVE:-}
+      VOLUME_LABELS_REMOVE_JSON: ${VOLUME_LABELS_REMOVE_JSON:-}
+      VOLUME_LABELS_CLEAR: ${VOLUME_LABELS_CLEAR:-false}
+      KEEP_BACKUP_VOLUME: ${KEEP_BACKUP_VOLUME:-false}
+      BACKUP_VOLUME_NAME: ${BACKUP_VOLUME_NAME:-}
+      COPY_HELPER_IMAGE: ${COPY_HELPER_IMAGE:-volguard-volume-relabel:local}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - type: bind
+        source: ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}
+        target: /var/run/docker.sock
+    security_opt:
+      - no-new-privileges:true
