@@ -1,5 +1,6 @@
 [tools]
 gh = "latest"
+gitleaks = "8.30.1"
 python = "latest"
 uv = "latest"
 
@@ -26,6 +27,10 @@ file = "mise-tasks/fedora-boot-backup"
 [tasks."npm-approve-builds"]
 description = "批准 npm 工具被 pnpm 跳过的构建脚本并可选重建"
 file = "mise-tasks/npm-approve-builds"
+
+[tasks."zsh-history-clean-secrets"]
+description = "用 gitleaks 扫描 ~/.zsh_history 并删除带敏感信息的行"
+file = "mise-tasks/zsh-history-clean-secrets"
 
 [tasks."jjpush"]
 description = "将指定 bookmark 指向上一个 change 并执行 jj git push"
