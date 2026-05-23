@@ -27,7 +27,15 @@ sync_dir() {
 			;;
 	esac
 
-	rsync -aH --numeric-ids $delete_arg "$source_dir"/ "$target_dir"/
+	printf '%s\n' "copy started: $source_dir -> $target_dir delete=$COPY_DELETE"
+
+	if rsync -aHh --numeric-ids --stats $delete_arg "$source_dir"/ "$target_dir"/; then
+		printf '%s\n' "copy succeeded"
+	else
+		status="$?"
+		printf '%s\n' "copy failed: rsync exited with status $status" >&2
+		exit "$status"
+	fi
 }
 
 sync_dir /source /target
