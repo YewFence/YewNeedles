@@ -36,6 +36,11 @@ file = "mise-tasks/zsh-history-clean-secrets"
 description = "将指定 bookmark 指向上一个 change 并执行 jj git push"
 file = "mise-tasks/jjpush"
 
+[tasks."journalctl-clean"]
+description = "清洗粘贴的 journalctl 日志，移除前置时间戳和 hostname"
+raw = true
+file = "mise-tasks/journalctl-clean"
+
 [tasks."rime-ice"]
 description = "通过 plum 为 fcitx5-rime 安装雾凇拼音"
 file = "mise-tasks/rime-ice"
