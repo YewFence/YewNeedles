@@ -213,6 +213,7 @@ def handle_start(argv: list[str]) -> int:
 
     host = connect_host(args.bind_address)
     print(f"sftp is listening on {args.bind_address}:{args.port}")
+    print(f"connect with: ssh -p {args.port} {args.user}@{host}")
     print(f"connect with: sftp -P {args.port} {args.user}@{host}")
     print(f"authorized keys file: {authorized_key_file}")
     print("stop with: volume-sftp/open.py stop")

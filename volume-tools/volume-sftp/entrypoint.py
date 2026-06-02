@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import grp
+import ipaddress
 import os
 import pwd
 import re
@@ -24,6 +25,22 @@ def read_env_int(name: str, default: int) -> int:
     if not raw_value.isdigit():
         fail(f"invalid {name}, use a numeric value")
     return int(raw_value)
+
+
+def read_env_port(name: str, default: int) -> int:
+    port = read_env_int(name, default)
+    if not 1 <= port <= 65535:
+        fail(f"invalid {name}, use a value between 1 and 65535")
+    return port
+
+
+def read_env_bind_address() -> str:
+    bind_address = os.environ.get("SFTP_BIND_ADDRESS", "127.0.0.1")
+    try:
+        ipaddress.ip_address(bind_address)
+    except ValueError:
+        fail("invalid SFTP_BIND_ADDRESS, use a valid IP address")
+    return bind_address
 
 
 def read_env_user() -> str:
@@ -53,6 +70,38 @@ def read_authorized_keys(path: Path) -> str:
         fail(f"authorized key file is empty: {path}")
 
     return "\n".join(keys) + "\n"
+
+
+def connect_host(bind_address: str) -> str:
+    if bind_address == "0.0.0.0":
+        return "127.0.0.1"
+    if bind_address == "::":
+        return "::1"
+    return bind_address
+
+
+def print_startup_info(
+    *,
+    bind_address: str,
+    port: int,
+    user: str,
+    uid: int,
+    gid: int,
+    authorized_key_path: Path,
+    authorized_keys_text: str,
+) -> None:
+    print("volume-sftp environment", flush=True)
+    print(f"SFTP_BIND_ADDRESS={bind_address}", flush=True)
+    print(f"SFTP_PORT={port}", flush=True)
+    print(f"SFTP_USER={user}", flush=True)
+    print(f"SFTP_UID={uid}", flush=True)
+    print(f"SFTP_GID={gid}", flush=True)
+    print(f"SFTP_AUTHORIZED_KEY_PATH={authorized_key_path}", flush=True)
+    print("volume-sftp authorized public keys", flush=True)
+    for key in authorized_keys_text.splitlines():
+        print(key, flush=True)
+    print("volume-sftp ssh command", flush=True)
+    print(f"ssh -p {port} {user}@{connect_host(bind_address)}", flush=True)
 
 
 def ensure_group(gid: int) -> str:
@@ -162,6 +211,8 @@ Match User {user}
 
 
 def main() -> int:
+    bind_address = read_env_bind_address()
+    port = read_env_port("SFTP_PORT", 2222)
     user = read_env_user()
     uid = read_env_int("SFTP_UID", 1000)
     gid = read_env_int("SFTP_GID", 1000)
@@ -169,6 +220,15 @@ def main() -> int:
     home = Path("/home") / user
 
     authorized_keys_text = read_authorized_keys(authorized_key_path)
+    print_startup_info(
+        bind_address=bind_address,
+        port=port,
+        user=user,
+        uid=uid,
+        gid=gid,
+        authorized_key_path=authorized_key_path,
+        authorized_keys_text=authorized_keys_text,
+    )
     group_name = ensure_group(gid)
     ensure_user(user, uid, gid, group_name, home)
     unlock_user_for_pubkey(user)
