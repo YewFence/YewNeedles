@@ -27,6 +27,26 @@ def read_env_int(name: str, default: int) -> int:
     return int(raw_value)
 
 
+def read_env_bool(name: str, default: bool) -> bool:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+
+    normalized = raw_value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    fail(f"invalid {name}, use true or false")
+
+
+def read_env_positive_int(name: str, default: int) -> int:
+    value = read_env_int(name, default)
+    if value < 1:
+        fail(f"invalid {name}, use a value of 1 or greater")
+    return value
+
+
 def read_env_port(name: str, default: int) -> int:
     port = read_env_int(name, default)
     if not 1 <= port <= 65535:
@@ -87,6 +107,8 @@ def print_startup_info(
     user: str,
     uid: int,
     gid: int,
+    max_auth_tries: int,
+    allow_root_login: bool,
     authorized_key_path: Path,
     authorized_keys_text: str,
 ) -> None:
@@ -96,6 +118,8 @@ def print_startup_info(
     print(f"SFTP_USER={user}", flush=True)
     print(f"SFTP_UID={uid}", flush=True)
     print(f"SFTP_GID={gid}", flush=True)
+    print(f"SFTP_MAX_AUTH_TRIES={max_auth_tries}", flush=True)
+    print(f"SFTP_ALLOW_ROOT_LOGIN={str(allow_root_login).lower()}", flush=True)
     print(f"SFTP_AUTHORIZED_KEY_PATH={authorized_key_path}", flush=True)
     print("volume-sftp authorized public keys", flush=True)
     for key in authorized_keys_text.splitlines():
@@ -166,7 +190,7 @@ def unlock_user_for_pubkey(user: str) -> None:
         fail(f"failed to unlock {user} for public key authentication")
 
 
-def prepare_filesystem(home: Path, authorized_keys_text: str, user: str) -> None:
+def prepare_filesystem(home: Path, authorized_keys_text: str, user: str, allow_root_login: bool) -> None:
     (home / "volume").mkdir(parents=True, exist_ok=True)
     Path("/run/sshd").mkdir(parents=True, exist_ok=True)
     AUTHORIZED_KEYS_DIR.mkdir(parents=True, exist_ok=True)
@@ -181,18 +205,42 @@ def prepare_filesystem(home: Path, authorized_keys_text: str, user: str) -> None
     os.chown(authorized_keys_path, 0, 0)
     os.chmod(authorized_keys_path, 0o644)
 
+    if allow_root_login:
+        root_authorized_keys_path = AUTHORIZED_KEYS_DIR / "root"
+        root_authorized_keys_path.write_text(authorized_keys_text, encoding="utf-8")
+        os.chown(root_authorized_keys_path, 0, 0)
+        os.chmod(root_authorized_keys_path, 0o644)
 
-def write_sshd_config(user: str, home: Path) -> None:
+
+def allowed_users(user: str, allow_root_login: bool) -> str:
+    users = [user]
+    if allow_root_login and user != "root":
+        users.append("root")
+    return " ".join(users)
+
+
+def matched_users(user: str, allow_root_login: bool) -> str:
+    users = [user]
+    if allow_root_login and user != "root":
+        users.append("root")
+    return ",".join(users)
+
+
+def write_sshd_config(user: str, home: Path, max_auth_tries: int, allow_root_login: bool) -> None:
+    permit_root_login = "yes" if allow_root_login else "no"
+    allow_users = allowed_users(user, allow_root_login)
+    match_users = matched_users(user, allow_root_login)
     config = f"""Port 22
 HostKey /etc/ssh/ssh_host_ed25519_key
 HostKey /etc/ssh/ssh_host_rsa_key
 PasswordAuthentication no
 PermitEmptyPasswords no
-PermitRootLogin no
+PermitRootLogin {permit_root_login}
 PubkeyAuthentication yes
 KbdInteractiveAuthentication no
 ChallengeResponseAuthentication no
 AuthenticationMethods publickey
+MaxAuthTries {max_auth_tries}
 AuthorizedKeysFile /etc/ssh/authorized_keys/%u
 X11Forwarding no
 AllowTcpForwarding no
@@ -200,9 +248,9 @@ AllowAgentForwarding no
 PermitTunnel no
 PrintMotd no
 Subsystem sftp internal-sftp
-AllowUsers {user}
+AllowUsers {allow_users}
 
-Match User {user}
+Match User {match_users}
     ChrootDirectory {home}
     ForceCommand internal-sftp -d /volume
     PasswordAuthentication no
@@ -216,6 +264,8 @@ def main() -> int:
     user = read_env_user()
     uid = read_env_int("SFTP_UID", 1000)
     gid = read_env_int("SFTP_GID", 1000)
+    max_auth_tries = read_env_positive_int("SFTP_MAX_AUTH_TRIES", 6)
+    allow_root_login = read_env_bool("SFTP_ALLOW_ROOT_LOGIN", False)
     authorized_key_path = Path(os.environ.get("SFTP_AUTHORIZED_KEY_PATH", "/run/volguard/authorized_key.pub"))
     home = Path("/home") / user
 
@@ -226,15 +276,19 @@ def main() -> int:
         user=user,
         uid=uid,
         gid=gid,
+        max_auth_tries=max_auth_tries,
+        allow_root_login=allow_root_login,
         authorized_key_path=authorized_key_path,
         authorized_keys_text=authorized_keys_text,
     )
     group_name = ensure_group(gid)
     ensure_user(user, uid, gid, group_name, home)
     unlock_user_for_pubkey(user)
-    prepare_filesystem(home, authorized_keys_text, user)
+    if allow_root_login and user != "root":
+        unlock_user_for_pubkey("root")
+    prepare_filesystem(home, authorized_keys_text, user, allow_root_login)
     run(["ssh-keygen", "-A"])
-    write_sshd_config(user, home)
+    write_sshd_config(user, home, max_auth_tries, allow_root_login)
 
     os.execv("/usr/sbin/sshd", ["/usr/sbin/sshd", "-D", "-e", "-f", str(SSHD_CONFIG_PATH)])
     return 0

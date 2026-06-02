@@ -79,6 +79,27 @@ def parse_id(value: str, label: str) -> int:
     return parsed
 
 
+def parse_positive_int(value: str, label: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"{label} must be an integer") from exc
+
+    if parsed < 1:
+        raise argparse.ArgumentTypeError(f"{label} must be 1 or greater")
+
+    return parsed
+
+
+def parse_bool(value: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise argparse.ArgumentTypeError("value must be true or false")
+
+
 def env_default(name: str, default: str, parser: object) -> object:
     raw_value = os.environ.get(name, default)
     try:
@@ -144,6 +165,18 @@ def build_start_parser() -> argparse.ArgumentParser:
         type=lambda value: parse_id(value, "gid"),
         default=env_default("SFTP_GID", "1000", lambda value: parse_id(value, "gid")),
     )
+    parser.add_argument(
+        "--max-auth-tries",
+        type=lambda value: parse_positive_int(value, "max auth tries"),
+        default=env_default("SFTP_MAX_AUTH_TRIES", "6", lambda value: parse_positive_int(value, "max auth tries")),
+        help="Maximum authentication attempts allowed per SSH connection.",
+    )
+    parser.add_argument(
+        "--allow-root-login",
+        action=argparse.BooleanOptionalAction,
+        default=env_default("SFTP_ALLOW_ROOT_LOGIN", "false", parse_bool),
+        help="Allow root to authenticate with the configured public keys and force it into the same SFTP chroot.",
+    )
     return parser
 
 
@@ -203,6 +236,8 @@ def handle_start(argv: list[str]) -> int:
             "SFTP_USER": args.user,
             "SFTP_UID": str(args.uid),
             "SFTP_GID": str(args.gid),
+            "SFTP_MAX_AUTH_TRIES": str(args.max_auth_tries),
+            "SFTP_ALLOW_ROOT_LOGIN": "true" if args.allow_root_login else "false",
             "SFTP_AUTHORIZED_KEY_FILE": authorized_key_file,
         }
     )
@@ -213,7 +248,6 @@ def handle_start(argv: list[str]) -> int:
 
     host = connect_host(args.bind_address)
     print(f"sftp is listening on {args.bind_address}:{args.port}")
-    print(f"connect with: ssh -p {args.port} {args.user}@{host}")
     print(f"connect with: sftp -P {args.port} {args.user}@{host}")
     print(f"authorized keys file: {authorized_key_file}")
     print("stop with: volume-sftp/open.py stop")

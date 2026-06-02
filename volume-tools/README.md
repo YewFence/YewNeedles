@@ -58,6 +58,12 @@ volume-tools/volume-sftp/open.py app_data
 volume-tools/volume-sftp/open.py app_data --rw --port 22222 --user volume
 ```
 
+指定单次连接允许的认证尝试次数，或者允许 ROOT 使用同一份公钥登录受限 SFTP。
+
+```sh
+volume-tools/volume-sftp/open.py app_data --max-auth-tries 10 --allow-root-login
+```
+
 如果要使用其他公钥文件或 `authorized_keys` 文件，可以显式传入。
 
 ```sh
