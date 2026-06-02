@@ -64,6 +64,12 @@ volume-tools/volume-sftp/open.py app_data --rw --port 22222 --user volume
 volume-tools/volume-sftp/open.py app_data --max-auth-tries 10 --allow-root-login
 ```
 
+如果要给 Zed 这类远程编辑器使用，需要允许普通 SSH 会话，这时用户可以写入 home 目录，远程编辑器可以安装并启动自己的远端服务。
+
+```sh
+volume-tools/volume-sftp/open.py app_data --allow-ssh
+```
+
 如果要使用其他公钥文件或 `authorized_keys` 文件，可以显式传入。
 
 ```sh

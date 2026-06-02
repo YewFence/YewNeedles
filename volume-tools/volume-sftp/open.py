@@ -175,7 +175,13 @@ def build_start_parser() -> argparse.ArgumentParser:
         "--allow-root-login",
         action=argparse.BooleanOptionalAction,
         default=env_default("SFTP_ALLOW_ROOT_LOGIN", "false", parse_bool),
-        help="Allow root to authenticate with the configured public keys and force it into the same SFTP chroot.",
+        help="Allow root to authenticate with the configured public keys.",
+    )
+    parser.add_argument(
+        "--allow-ssh",
+        action=argparse.BooleanOptionalAction,
+        default=env_default("SFTP_ALLOW_SSH", "false", parse_bool),
+        help="Allow regular SSH sessions in addition to SFTP.",
     )
     return parser
 
@@ -238,6 +244,7 @@ def handle_start(argv: list[str]) -> int:
             "SFTP_GID": str(args.gid),
             "SFTP_MAX_AUTH_TRIES": str(args.max_auth_tries),
             "SFTP_ALLOW_ROOT_LOGIN": "true" if args.allow_root_login else "false",
+            "SFTP_ALLOW_SSH": "true" if args.allow_ssh else "false",
             "SFTP_AUTHORIZED_KEY_FILE": authorized_key_file,
         }
     )
@@ -249,6 +256,8 @@ def handle_start(argv: list[str]) -> int:
     host = connect_host(args.bind_address)
     print(f"sftp is listening on {args.bind_address}:{args.port}")
     print(f"connect with: sftp -P {args.port} {args.user}@{host}")
+    if args.allow_ssh:
+        print(f"ssh with: ssh -t -p {args.port} {args.user}@{host}")
     print(f"authorized keys file: {authorized_key_file}")
     print("stop with: volume-sftp/open.py stop")
     return 0

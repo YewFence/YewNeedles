@@ -14,6 +14,7 @@ from pathlib import Path
 
 AUTHORIZED_KEYS_DIR = Path("/etc/ssh/authorized_keys")
 SSHD_CONFIG_PATH = Path("/etc/ssh/sshd_config")
+PASSWD_PATH = Path("/etc/passwd")
 
 
 def fail(message: str) -> None:
@@ -109,6 +110,7 @@ def print_startup_info(
     gid: int,
     max_auth_tries: int,
     allow_root_login: bool,
+    allow_ssh: bool,
     authorized_key_path: Path,
     authorized_keys_text: str,
 ) -> None:
@@ -120,12 +122,16 @@ def print_startup_info(
     print(f"SFTP_GID={gid}", flush=True)
     print(f"SFTP_MAX_AUTH_TRIES={max_auth_tries}", flush=True)
     print(f"SFTP_ALLOW_ROOT_LOGIN={str(allow_root_login).lower()}", flush=True)
+    print(f"SFTP_ALLOW_SSH={str(allow_ssh).lower()}", flush=True)
     print(f"SFTP_AUTHORIZED_KEY_PATH={authorized_key_path}", flush=True)
     print("volume-sftp authorized public keys", flush=True)
     for key in authorized_keys_text.splitlines():
         print(key, flush=True)
-    print("volume-sftp ssh command", flush=True)
-    print(f"ssh -p {port} {user}@{connect_host(bind_address)}", flush=True)
+    print("volume-sftp sftp command", flush=True)
+    print(f"sftp -P {port} {user}@{connect_host(bind_address)}", flush=True)
+    if allow_ssh:
+        print("volume-sftp ssh command", flush=True)
+        print(f"ssh -t -p {port} {user}@{connect_host(bind_address)}", flush=True)
 
 
 def ensure_group(gid: int) -> str:
@@ -147,7 +153,26 @@ def ensure_uid_available(user: str, uid: int) -> None:
         fail(f"SFTP_UID {uid} is already used by {existing_user}")
 
 
-def ensure_user(user: str, uid: int, gid: int, group_name: str, home: Path) -> None:
+def update_user_shell(user: str, shell: str) -> None:
+    lines = PASSWD_PATH.read_text(encoding="utf-8").splitlines()
+    updated_lines = []
+    changed = False
+
+    for line in lines:
+        fields = line.split(":")
+        if len(fields) == 7 and fields[0] == user:
+            fields[-1] = shell
+            line = ":".join(fields)
+            changed = True
+        updated_lines.append(line)
+
+    if not changed:
+        fail(f"failed to update shell for {user}")
+
+    PASSWD_PATH.write_text("\n".join(updated_lines) + "\n", encoding="utf-8")
+
+
+def ensure_user(user: str, uid: int, gid: int, group_name: str, home: Path, shell: str) -> None:
     try:
         passwd_entry = pwd.getpwnam(user)
     except KeyError:
@@ -160,7 +185,7 @@ def ensure_user(user: str, uid: int, gid: int, group_name: str, home: Path) -> N
                 "-h",
                 str(home),
                 "-s",
-                "/sbin/nologin",
+                shell,
                 "-u",
                 str(uid),
                 "-G",
@@ -174,6 +199,8 @@ def ensure_user(user: str, uid: int, gid: int, group_name: str, home: Path) -> N
         fail(f"SFTP_USER {user} already exists with uid {passwd_entry.pw_uid}, expected {uid}")
     if passwd_entry.pw_gid != gid:
         fail(f"SFTP_USER {user} already exists with gid {passwd_entry.pw_gid}, expected {gid}")
+    if passwd_entry.pw_shell != shell:
+        update_user_shell(user, shell)
 
 
 def unlock_user_for_pubkey(user: str) -> None:
@@ -190,12 +217,22 @@ def unlock_user_for_pubkey(user: str) -> None:
         fail(f"failed to unlock {user} for public key authentication")
 
 
-def prepare_filesystem(home: Path, authorized_keys_text: str, user: str, allow_root_login: bool) -> None:
+def prepare_filesystem(
+    home: Path,
+    authorized_keys_text: str,
+    user: str,
+    uid: int,
+    gid: int,
+    allow_root_login: bool,
+    allow_ssh: bool,
+) -> None:
     (home / "volume").mkdir(parents=True, exist_ok=True)
     Path("/run/sshd").mkdir(parents=True, exist_ok=True)
     AUTHORIZED_KEYS_DIR.mkdir(parents=True, exist_ok=True)
 
-    os.chown(home, 0, 0)
+    home_uid = uid if allow_ssh else 0
+    home_gid = gid if allow_ssh else 0
+    os.chown(home, home_uid, home_gid)
     os.chmod(home, 0o755)
     os.chown(AUTHORIZED_KEYS_DIR, 0, 0)
     os.chmod(AUTHORIZED_KEYS_DIR, 0o755)
@@ -226,10 +263,27 @@ def matched_users(user: str, allow_root_login: bool) -> str:
     return ",".join(users)
 
 
-def write_sshd_config(user: str, home: Path, max_auth_tries: int, allow_root_login: bool) -> None:
+def write_sshd_config(
+    user: str,
+    home: Path,
+    max_auth_tries: int,
+    allow_root_login: bool,
+    allow_ssh: bool,
+) -> None:
     permit_root_login = "yes" if allow_root_login else "no"
+    permit_tty = "yes" if allow_ssh else "no"
     allow_users = allowed_users(user, allow_root_login)
     match_users = matched_users(user, allow_root_login)
+    sftp_only_match = (
+        ""
+        if allow_ssh
+        else f"""
+Match User {match_users}
+    ChrootDirectory {home}
+    ForceCommand internal-sftp -d /volume
+    PasswordAuthentication no
+"""
+    )
     config = f"""Port 22
 HostKey /etc/ssh/ssh_host_ed25519_key
 HostKey /etc/ssh/ssh_host_rsa_key
@@ -246,15 +300,11 @@ X11Forwarding no
 AllowTcpForwarding no
 AllowAgentForwarding no
 PermitTunnel no
+PermitTTY {permit_tty}
 PrintMotd no
 Subsystem sftp internal-sftp
 AllowUsers {allow_users}
-
-Match User {match_users}
-    ChrootDirectory {home}
-    ForceCommand internal-sftp -d /volume
-    PasswordAuthentication no
-"""
+{sftp_only_match}"""
     SSHD_CONFIG_PATH.write_text(config, encoding="utf-8")
 
 
@@ -266,8 +316,10 @@ def main() -> int:
     gid = read_env_int("SFTP_GID", 1000)
     max_auth_tries = read_env_positive_int("SFTP_MAX_AUTH_TRIES", 6)
     allow_root_login = read_env_bool("SFTP_ALLOW_ROOT_LOGIN", False)
+    allow_ssh = read_env_bool("SFTP_ALLOW_SSH", False)
     authorized_key_path = Path(os.environ.get("SFTP_AUTHORIZED_KEY_PATH", "/run/volguard/authorized_key.pub"))
     home = Path("/home") / user
+    shell = "/bin/sh" if allow_ssh else "/sbin/nologin"
 
     authorized_keys_text = read_authorized_keys(authorized_key_path)
     print_startup_info(
@@ -278,17 +330,18 @@ def main() -> int:
         gid=gid,
         max_auth_tries=max_auth_tries,
         allow_root_login=allow_root_login,
+        allow_ssh=allow_ssh,
         authorized_key_path=authorized_key_path,
         authorized_keys_text=authorized_keys_text,
     )
     group_name = ensure_group(gid)
-    ensure_user(user, uid, gid, group_name, home)
+    ensure_user(user, uid, gid, group_name, home, shell)
     unlock_user_for_pubkey(user)
     if allow_root_login and user != "root":
         unlock_user_for_pubkey("root")
-    prepare_filesystem(home, authorized_keys_text, user, allow_root_login)
+    prepare_filesystem(home, authorized_keys_text, user, uid, gid, allow_root_login, allow_ssh)
     run(["ssh-keygen", "-A"])
-    write_sshd_config(user, home, max_auth_tries, allow_root_login)
+    write_sshd_config(user, home, max_auth_tries, allow_root_login, allow_ssh)
 
     os.execv("/usr/sbin/sshd", ["/usr/sbin/sshd", "-D", "-e", "-f", str(SSHD_CONFIG_PATH)])
     return 0

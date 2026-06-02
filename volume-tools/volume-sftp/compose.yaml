@@ -18,6 +18,7 @@ services:
       SFTP_GID: ${SFTP_GID:-1000}
       SFTP_MAX_AUTH_TRIES: ${SFTP_MAX_AUTH_TRIES:-6}
       SFTP_ALLOW_ROOT_LOGIN: ${SFTP_ALLOW_ROOT_LOGIN:-false}
+      SFTP_ALLOW_SSH: ${SFTP_ALLOW_SSH:-false}
       SFTP_AUTHORIZED_KEY_PATH: /run/volguard/authorized_key.pub
       TZ: ${TZ:-UTC}
     ports:
