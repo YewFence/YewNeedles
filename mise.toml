@@ -1,7 +1,7 @@
 [tools]
 gh = "latest"
 gitleaks = "8.30.1"
-"pipx:git+https://github.com/YewFence/YewNeedles.git" = "v0.1.0#subdirectory=packages/zsh-completions-sync"
+"pipx:git+https://github.com/YewFence/YewNeedles.git" = "v0.1.1#subdirectory=packages/zsh-completions-sync"
 python = "latest"
 uv = "latest"
 
@@ -32,6 +32,10 @@ file = "mise-tasks/npm-approve-builds"
 [tasks."zsh-history-clean-secrets"]
 description = "用 gitleaks 扫描 ~/.zsh_history 并删除带敏感信息的行"
 file = "mise-tasks/zsh-history-clean-secrets"
+
+[tasks."zsh-completions-sync:global"]
+description = "从本地源码运行 zsh-completions-sync global"
+run = "uv run --project packages/zsh-completions-sync zsh-completions-sync global"
 
 [tasks."jjpush"]
 description = "将指定 bookmark 指向上一个 change 并执行 jj git push"
