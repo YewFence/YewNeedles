@@ -1,29 +1,43 @@
-[global.mise]
+[tools.mise]
+scopes = ["global"]
 command = ["mise", "completion", "zsh"]
 
-[global.gh]
+[tools.gh]
+scopes = ["global"]
 command = ["gh", "completion", "-s", "zsh"]
 
-[global.starship]
+[tools.starship]
+scopes = ["global"]
 command = ["starship", "completions", "zsh"]
 
-[global.rclone]
+[tools.rclone]
+scopes = ["global"]
 command = ["rclone", "completion", "zsh", "-"]
 
-[project.kubectl]
+[tools.kubectl]
+scopes = ["project"]
 command = ["kubectl", "completion", "zsh"]
 
-[project.helm]
+[tools.helm]
+scopes = ["project"]
 command = ["helm", "completion", "zsh"]
 
-[project.uv]
+[tools.uv]
+scopes = ["project"]
 command = ["uv", "generate-shell-completion", "zsh"]
 
-[project.pnpm]
+[tools.pnpm]
+scopes = ["global", "project"]
 command = ["pnpm", "completion", "zsh"]
 
-[project.aube]
+[tools.aube]
+scopes = ["project"]
 command = ["aube", "completion", "zsh"]
 
-[project.bun]
+[tools.bun]
+scopes = ["project"]
 command = ["bun", "completion", "zsh"]
+
+[tools.chezmoi]
+scopes = ["global"]
+command = ["chezmoi", "completion", "zsh"]

@@ -25,6 +25,7 @@ USER_CONFIG_DIR = "zsh-completions-sync"
 USER_CONFIG_FILE = "registry.toml"
 USER_LEGACY_CONFIG_FILE = "zsh-completions-sync-registry.toml"
 DEFAULT_REGISTRY = "registry.toml"
+SUPPORTED_SCOPES = frozenset({"global", "project"})
 
 
 @dataclass(frozen=True)
@@ -159,13 +160,20 @@ def merge_mapping(base: dict[str, Any], override: Mapping[str, Any]) -> None:
 
 
 def parse_scope_tools(registry: Mapping[str, Any], scope: str) -> list[CompletionTool]:
-    scope_table = registry.get(scope, {})
-    if not isinstance(scope_table, Mapping):
+    tool_table = registry.get("tools", {})
+    if not isinstance(tool_table, Mapping):
         return []
 
     tools: list[CompletionTool] = []
-    for name, config in scope_table.items():
+    for name, config in tool_table.items():
         if not isinstance(name, str) or not isinstance(config, Mapping):
+            continue
+
+        scopes = parse_scopes(config.get("scopes"))
+        if scopes is None:
+            warn_tool(name, "invalid scopes config")
+            continue
+        if scope not in scopes:
             continue
 
         tool = parse_tool(name, config)
@@ -173,6 +181,18 @@ def parse_scope_tools(registry: Mapping[str, Any], scope: str) -> list[Completio
             tools.append(tool)
 
     return tools
+
+
+def parse_scopes(value: object) -> frozenset[str] | None:
+    if not isinstance(value, list):
+        return None
+    if not all(isinstance(item, str) and item for item in value):
+        return None
+
+    scopes = frozenset(value)
+    if not scopes <= SUPPORTED_SCOPES:
+        return None
+    return scopes
 
 
 def parse_tool(name: str, config: Mapping[str, Any]) -> CompletionTool | None:
