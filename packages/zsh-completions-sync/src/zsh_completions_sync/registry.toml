@@ -1,0 +1,20 @@
+[global.mise]
+command = ["mise", "completion", "zsh"]
+
+[global.gh]
+command = ["gh", "completion", "-s", "zsh"]
+
+[global.starship]
+command = ["starship", "completions", "zsh"]
+
+[project.kubectl]
+command = ["kubectl", "completion", "zsh"]
+
+[project.helm]
+command = ["helm", "completion", "zsh"]
+
+[project.uv]
+command = ["uv", "generate-shell-completion", "zsh"]
+
+[project.pnpm]
+command = ["pnpm", "completion", "zsh"]
