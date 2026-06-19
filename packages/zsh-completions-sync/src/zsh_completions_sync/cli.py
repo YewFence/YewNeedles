@@ -15,6 +15,8 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
+from zsh_completions_sync.sources import CompletionSource, parse_command, parse_source, read_source
+
 
 PROJECT_CONFIG = ".zsh-completions-sync.toml"
 PROJECT_CONFIG_DIR = ".config"
@@ -28,7 +30,21 @@ DEFAULT_REGISTRY = "registry.toml"
 @dataclass(frozen=True)
 class CompletionTool:
     name: str
+    source: CompletionSource
+    check: "CompletionCheck | None"
+
+
+@dataclass(frozen=True)
+class WhichCheck:
+    executable: str
+
+
+@dataclass(frozen=True)
+class CommandCheck:
     command: tuple[str, ...]
+
+
+CompletionCheck = WhichCheck | CommandCheck
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -152,45 +168,89 @@ def parse_scope_tools(registry: Mapping[str, Any], scope: str) -> list[Completio
         if not isinstance(name, str) or not isinstance(config, Mapping):
             continue
 
-        command = config.get("command")
-        if is_command(command):
-            tools.append(CompletionTool(name=name, command=tuple(command)))
+        tool = parse_tool(name, config)
+        if tool is not None:
+            tools.append(tool)
 
     return tools
 
 
-def is_command(value: object) -> bool:
-    return (
-        isinstance(value, list)
-        and len(value) > 0
-        and all(isinstance(item, str) and item for item in value)
-    )
+def parse_tool(name: str, config: Mapping[str, Any]) -> CompletionTool | None:
+    source = parse_source(config)
+    if source is None:
+        warn_tool(name, "invalid source config")
+        return None
+
+    check = parse_check(config.get("check"), name)
+    if check is _INVALID_CHECK:
+        warn_tool(name, "invalid check config")
+        return None
+
+    return CompletionTool(name=name, source=source, check=check)
+
+
+_INVALID_CHECK = object()
+
+
+def parse_check(value: object, default_executable: str) -> CompletionCheck | None | object:
+    if value is None:
+        return WhichCheck(default_executable)
+    if value is False:
+        return None
+    if isinstance(value, str) and value:
+        return WhichCheck(value)
+
+    command = parse_command(value)
+    if command is not None:
+        return CommandCheck(command)
+
+    return _INVALID_CHECK
 
 
 def sync_tools(tools: Sequence[CompletionTool], output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     for tool in tools:
-        if shutil.which(tool.command[0]) is None:
-            continue
         sync_tool(tool, output_dir)
 
 
 def sync_tool(tool: CompletionTool, output_dir: Path) -> None:
-    try:
-        result = subprocess.run(
-            tool.command,
-            check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-        )
-    except OSError:
+    if not tool_enabled(tool.check):
         return
 
-    if result.returncode != 0:
+    result = read_source(tool.source)
+    if result.error is not None:
+        warn_tool(tool.name, result.error)
         return
 
     destination = output_dir / f"_{tool.name}"
-    write_atomic(destination, result.stdout)
+    write_atomic(destination, result.content or b"")
+
+
+def tool_enabled(check: CompletionCheck | None) -> bool:
+    if check is None:
+        return True
+
+    if isinstance(check, WhichCheck):
+        return shutil.which(check.executable) is not None
+
+    if shutil.which(check.command[0]) is None:
+        return False
+
+    try:
+        result = subprocess.run(
+            check.command,
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError:
+        return False
+
+    return result.returncode == 0
+
+
+def warn_tool(name: str, message: str) -> None:
+    print(f"warn: skip {name}: {message}", file=sys.stderr)
 
 
 def write_atomic(destination: Path, content: bytes) -> None:

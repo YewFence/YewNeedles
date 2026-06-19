@@ -7,6 +7,9 @@ command = ["gh", "completion", "-s", "zsh"]
 [global.starship]
 command = ["starship", "completions", "zsh"]
 
+[global.rclone]
+command = ["rclone", "completion", "zsh", "-"]
+
 [project.kubectl]
 command = ["kubectl", "completion", "zsh"]
 
@@ -18,3 +21,9 @@ command = ["uv", "generate-shell-completion", "zsh"]
 
 [project.pnpm]
 command = ["pnpm", "completion", "zsh"]
+
+[project.aube]
+command = ["aube", "completion", "zsh"]
+
+[project.bun]
+command = ["bun", "completion", "zsh"]
