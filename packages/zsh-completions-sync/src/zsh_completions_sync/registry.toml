@@ -23,7 +23,7 @@ scopes = ["project"]
 command = ["helm", "completion", "zsh"]
 
 [tools.uv]
-scopes = ["project"]
+scopes = ["global", "project"]
 command = ["uv", "generate-shell-completion", "zsh"]
 
 [tools.pnpm]
@@ -31,7 +31,7 @@ scopes = ["global", "project"]
 command = ["pnpm", "completion", "zsh"]
 
 [tools.aube]
-scopes = ["project"]
+scopes = ["global", "project"]
 command = ["aube", "completion", "zsh"]
 
 [tools.bun]
@@ -41,3 +41,15 @@ command = ["bun", "completion", "zsh"]
 [tools.chezmoi]
 scopes = ["global"]
 command = ["chezmoi", "completion", "zsh"]
+
+[tools.betterleaks]
+scopes = ["global"]
+command = ["betterleaks", "completion", "zsh"]
+
+[tools.cargo]
+scopes = ["global", "project"]
+command = ["rustup", "completions", "zsh", "cargo"]
+
+[tools.rustup]
+scopes = ["global", "project"]
+command = ["rustup", "completions", "zsh"]
