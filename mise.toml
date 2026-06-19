@@ -1,6 +1,7 @@
 [tools]
 gh = "latest"
 gitleaks = "8.30.1"
+"pipx:git+https://github.com/YewFence/YewNeedles.git" = "v0.1.0#subdirectory=packages/zsh-completions-sync"
 python = "latest"
 uv = "latest"
 

@@ -6,6 +6,10 @@ command = ["mise", "completion", "zsh"]
 scopes = ["global"]
 command = ["gh", "completion", "-s", "zsh"]
 
+[tools.docker]
+scopes = ["global"]
+command = ["docker", "completion", "zsh"]
+
 [tools.starship]
 scopes = ["global"]
 command = ["starship", "completions", "zsh"]
