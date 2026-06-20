@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-#MISE description "Approve skipped dependency builds for a mise npm:* tool installed via pnpm"
-#USAGE arg "<tool>" help="Installed npm tool name or full mise spec, e.g. @larksuite/cli or npm:@larksuite/cli"
-#USAGE flag "--all" help="Approve all ignored builds without prompting"
-#USAGE flag "-r --rebuild" help="Run pnpm install after approval to execute approved builds"
-#USAGE flag "-n --dry-run" help="Resolve paths and show ignored builds without approving"
+# MISE description "Approve skipped dependency builds for a mise npm:* tool installed via pnpm"
+# USAGE arg "<tool>" help="Installed npm tool name or full mise spec, e.g. @larksuite/cli or npm:@larksuite/cli"
+# USAGE flag "--all" help="Approve all ignored builds without prompting"
+# USAGE flag "-r --rebuild" help="Run pnpm install after approval to execute approved builds"
+# USAGE flag "-n --dry-run" help="Resolve paths and show ignored builds without approving"
 
 from __future__ import annotations
 
@@ -85,7 +85,9 @@ def resolve_pnpm_project_dir(install_dir: Path) -> Path | None:
     if len(candidates) == 1:
         return candidates[0].resolve(strict=True)
 
-    stateful_candidates = [entry for entry in candidates if has_pnpm_install_state(entry)]
+    stateful_candidates = [
+        entry for entry in candidates if has_pnpm_install_state(entry)
+    ]
     if len(stateful_candidates) == 1:
         return stateful_candidates[0].resolve(strict=True)
 

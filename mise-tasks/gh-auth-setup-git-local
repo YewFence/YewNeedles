@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#MISE description "Run gh auth setup-git against ~/.gitconfig.local and warn if ~/.gitconfig does not include it"
+# MISE description "Run gh auth setup-git against ~/.gitconfig.local and warn if ~/.gitconfig does not include it"
 
 from __future__ import annotations
 
@@ -93,12 +93,16 @@ def has_include(global_gitconfig: Path, local_gitconfig: Path) -> bool:
     return False
 
 
-def warn_if_missing_include(global_gitconfig: Path, local_gitconfig: Path, *, home: Path) -> None:
+def warn_if_missing_include(
+    global_gitconfig: Path, local_gitconfig: Path, *, home: Path
+) -> None:
     display_global = display_path(global_gitconfig, home=home)
     display_local = display_path(local_gitconfig, home=home)
 
     if not global_gitconfig.is_file():
-        eprint(f"WARN: {display_global} does not exist, so it cannot include {display_local}.")
+        eprint(
+            f"WARN: {display_global} does not exist, so it cannot include {display_local}."
+        )
         return
 
     if has_include(global_gitconfig, local_gitconfig):

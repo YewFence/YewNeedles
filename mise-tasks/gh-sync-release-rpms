@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-#MISE description "在 Fedora/RHEL 系发行版按 tools.toml 同步 GitHub release RPM"
-#USAGE flag "-r --retries <retries>" help="Download retry count, defaults to 3"
-#USAGE flag "-t --tools-file <tools_file>" help="Tools file used for sync, defaults to tools.toml"
-#USAGE flag "-f --force" help="Install even when the installed RPM version already matches"
-#USAGE flag "-n --dry-run" help="Show what would be installed without downloading or installing"
+# MISE description "在 Fedora/RHEL 系发行版按 tools.toml 同步 GitHub release RPM"
+# USAGE flag "-r --retries <retries>" help="Download retry count, defaults to 3"
+# USAGE flag "-t --tools-file <tools_file>" help="Tools file used for sync, defaults to tools.toml"
+# USAGE flag "-f --force" help="Install even when the installed RPM version already matches"
+# USAGE flag "-n --dry-run" help="Show what would be installed without downloading or installing"
 
 from __future__ import annotations
 
@@ -49,7 +49,9 @@ def usage_value(name: str, default: str = "") -> str:
     return os.environ.get(f"usage_{name}", default).strip()
 
 
-def command_output(args: list[str], *, allow_failure: bool = False) -> tuple[int, str, str]:
+def command_output(
+    args: list[str], *, allow_failure: bool = False
+) -> tuple[int, str, str]:
     import subprocess
 
     result = subprocess.run(
@@ -98,7 +100,9 @@ def installed_version(package_names: tuple[str, ...]) -> tuple[str, str] | None:
 def package_names_from_entry(entry: dict[str, Any], name: str) -> tuple[str, ...]:
     raw_package_names = entry.get("package_names")
     if isinstance(raw_package_names, list):
-        package_names = tuple(item for item in raw_package_names if isinstance(item, str) and item)
+        package_names = tuple(
+            item for item in raw_package_names if isinstance(item, str) and item
+        )
         if package_names:
             return package_names
 
@@ -111,7 +115,9 @@ def package_names_from_entry(entry: dict[str, Any], name: str) -> tuple[str, ...
 
 def load_tools(path: Path) -> list[GithubReleaseRpm]:
     if tomllib is None:
-        eprint("Python 3.11 or newer is required to read tools.toml with the standard library tomllib module.")
+        eprint(
+            "Python 3.11 or newer is required to read tools.toml with the standard library tomllib module."
+        )
         raise SystemExit(1)
 
     try:
@@ -164,7 +170,9 @@ def load_tools(path: Path) -> list[GithubReleaseRpm]:
     return tools
 
 
-def sync_tool(tool: GithubReleaseRpm, *, retries: int, dry_run: bool, force: bool) -> bool:
+def sync_tool(
+    tool: GithubReleaseRpm, *, retries: int, dry_run: bool, force: bool
+) -> bool:
     expected_version = normalize_version(tool.version)
     installed = installed_version(tool.package_names)
 
@@ -177,7 +185,9 @@ def sync_tool(tool: GithubReleaseRpm, *, retries: int, dry_run: bool, force: boo
             print(f"{tool.name}: ok ({package_name} {current_version})")
             return False
 
-        print(f"{tool.name}: installed {package_name} {current_version}, expected {expected_version}")
+        print(
+            f"{tool.name}: installed {package_name} {current_version}, expected {expected_version}"
+        )
 
     install_release_rpm(
         name=tool.name,
