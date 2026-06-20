@@ -13,3 +13,4 @@ zle -N sudo-command-line
 
 # Bind Alt + s to the sudo-command-line widget
 bindkey '\es' sudo-command-line
+bindkey -M viins '\es' sudo-command-line

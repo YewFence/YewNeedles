@@ -18,3 +18,4 @@ zle -N space-command-line
 
 # Bind Alt + i to the space-command-line widget
 bindkey '\ei' space-command-line
+bindkey -M viins '\ei' space-command-line
