@@ -164,7 +164,7 @@ def load_tools(path: Path) -> list[GithubReleaseRpm]:
     return tools
 
 
-def sync_tool(tool: GithubReleaseRpm, *, retries: int, dry_run: bool, force: bool) -> None:
+def sync_tool(tool: GithubReleaseRpm, *, retries: int, dry_run: bool, force: bool) -> bool:
     expected_version = normalize_version(tool.version)
     installed = installed_version(tool.package_names)
 
@@ -175,7 +175,7 @@ def sync_tool(tool: GithubReleaseRpm, *, retries: int, dry_run: bool, force: boo
         package_name, current_version = installed
         if normalize_version(current_version) == expected_version and not force:
             print(f"{tool.name}: ok ({package_name} {current_version})")
-            return
+            return False
 
         print(f"{tool.name}: installed {package_name} {current_version}, expected {expected_version}")
 
@@ -187,6 +187,7 @@ def sync_tool(tool: GithubReleaseRpm, *, retries: int, dry_run: bool, force: boo
         retries=retries,
         dry_run=dry_run,
     )
+    return True
 
 
 def main() -> int:
@@ -199,8 +200,15 @@ def main() -> int:
     require_command("gh", "Install it with: mise use gh@latest")
     require_command("rpm")
 
+    updated_tools: list[str] = []
     for tool in load_tools(tools_file):
-        sync_tool(tool, retries=retries, dry_run=dry_run, force=force)
+        if sync_tool(tool, retries=retries, dry_run=dry_run, force=force):
+            updated_tools.append(tool.name)
+
+    if updated_tools:
+        print("These tools may need a restart:")
+        for name in updated_tools:
+            print(name)
 
     return 0
 
