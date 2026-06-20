@@ -1,0 +1,34 @@
+[[github_release_rpms]]
+name = "cc-switch"
+repo = "farion1231/cc-switch"
+package_names = ["cc-switch", "CC-Switch"]
+# renovate: datasource=github-releases depName=farion1231/cc-switch versioning=semver
+version = "v3.16.3"
+
+[[github_release_rpms]]
+name = "clash-verge-rev"
+repo = "clash-verge-rev/clash-verge-rev"
+package_names = ["clash-verge", "clash-verge-rev", "Clash.Verge"]
+# renovate: datasource=github-releases depName=clash-verge-rev/clash-verge-rev versioning=semver
+version = "v2.5.1"
+
+[[github_release_rpms]]
+name = "biopass-rs"
+repo = "YewFence/biopass-rs"
+package_names = ["biopass-rs"]
+# renovate: datasource=github-releases depName=YewFence/biopass-rs versioning=semver
+version = "v0.6.11"
+
+[[github_release_rpms]]
+name = "paseo"
+repo = "getpaseo/paseo"
+package_names = ["paseo", "Paseo"]
+# renovate: datasource=github-releases depName=getpaseo/paseo versioning=semver
+version = "v0.1.97"
+
+[[github_release_rpms]]
+name = "motrix-next"
+repo = "AnInsomniacy/motrix-next"
+package_names = ["MotrixNext", "motrix-next", "motrixnext"]
+# renovate: datasource=github-releases depName=AnInsomniacy/motrix-next versioning=semver
+version = "v3.9.5"
