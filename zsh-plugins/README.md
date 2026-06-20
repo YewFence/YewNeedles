@@ -4,8 +4,8 @@
 
 ## 插件
 
-- `sudo/ee-2-sudo.zsh` 按两次 `Esc` 给当前命令添加或移除 `sudo`
-- `space/shortcut-2-space.zsh` 按 `Alt + s` 给当前命令添加或移除开头空格，并启用 `HIST_IGNORE_SPACE`
+- `sudo/ee-2-sudo.zsh` 按 `Alt + s` 给当前命令添加或移除 `sudo`
+- `space/shortcut-2-space.zsh` 按 `Alt + i` 给当前命令添加或移除开头空格，并启用 `HIST_IGNORE_SPACE`
 
 ## 安装
 

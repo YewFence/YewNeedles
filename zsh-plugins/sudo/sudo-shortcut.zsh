@@ -11,5 +11,5 @@ sudo-command-line() {
 # Create a new ZLE widget for the sudo-command-line function
 zle -N sudo-command-line
 
-# Bind the double Esc key to the sudo-command-line widget
-bindkey '\e\e' sudo-command-line
+# Bind Alt + s to the sudo-command-line widget
+bindkey '\es' sudo-command-line

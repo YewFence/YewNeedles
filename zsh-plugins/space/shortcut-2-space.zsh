@@ -1,4 +1,4 @@
-# This Zsh plugin allows you to automatically add a space at the beginning of a command when you press the Alt + s key combination.
+# This Zsh plugin allows you to automatically add a space at the beginning of a command when you press the Alt + i key combination.
 # Open the history ignore space option
 setopt HIST_IGNORE_SPACE
 
@@ -16,5 +16,5 @@ space-command-line() {
 # Create a new ZLE widget for the space-command-line function
 zle -N space-command-line
 
-# Bind the Alt + s key to the space-command-line widget
-bindkey '\es' space-command-line
+# Bind Alt + i to the space-command-line widget
+bindkey '\ei' space-command-line
