@@ -15,7 +15,17 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
-from zsh_completions_sync.sources import CompletionSource, parse_command, parse_source, read_source
+from zsh_completions_sync.sources import (
+    CommandSource,
+    CompletionSource,
+    GitFileSource,
+    HttpFileSource,
+    LocalFileSource,
+    format_command,
+    parse_command,
+    parse_source,
+    read_source,
+)
 
 
 PROJECT_CONFIG = ".zsh-completions-sync.toml"
@@ -36,6 +46,26 @@ class CompletionTool:
 
 
 @dataclass(frozen=True)
+class RegistryLayer:
+    label: str
+    registry: Mapping[str, Any]
+
+
+@dataclass(frozen=True)
+class LoadedRegistry:
+    registry: dict[str, Any]
+    layers: tuple[RegistryLayer, ...]
+
+
+@dataclass(frozen=True)
+class ListedTool:
+    name: str
+    scopes: str
+    source: str
+    config_sources: str
+
+
+@dataclass(frozen=True)
 class WhichCheck:
     executable: str
 
@@ -53,16 +83,26 @@ def main(argv: Sequence[str] | None = None) -> int:
         prog="zsh-completions-sync",
         description="Synchronize zsh completion scripts.",
     )
-    subparsers = parser.add_subparsers(dest="scope", required=True)
+    subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("project", help="Generate project-local completions.")
     subparsers.add_parser("global", help="Generate global completions.")
+    list_parser = subparsers.add_parser("list", help="List configured completion tools.")
+    list_parser.add_argument(
+        "--scope",
+        choices=sorted(SUPPORTED_SCOPES),
+        help="Only show tools enabled for the selected scope.",
+    )
 
     args = parser.parse_args(argv)
-    scope = args.scope
-    output_dir = default_output_dir(scope)
+    loaded_registry = load_registry(Path.cwd())
 
-    registry = load_registry(Path.cwd())
-    tools = parse_scope_tools(registry, scope)
+    if args.command == "list":
+        list_tools(loaded_registry, args.scope)
+        return 0
+
+    scope = args.command
+    output_dir = default_output_dir(scope)
+    tools = parse_scope_tools(loaded_registry.registry, scope)
     sync_tools(tools, output_dir)
     return 0
 
@@ -75,11 +115,16 @@ def default_output_dir(scope: str) -> Path:
     raise ValueError(f"unsupported scope: {scope}")
 
 
-def load_registry(project_dir: Path) -> dict[str, Any]:
-    registry = read_resource_toml(DEFAULT_REGISTRY)
-    merge_mapping(registry, read_preferred_toml(user_config_paths()))
-    merge_mapping(registry, read_preferred_toml(project_config_paths(project_dir)))
-    return registry
+def load_registry(project_dir: Path) -> LoadedRegistry:
+    layers = (
+        RegistryLayer("built-in registry", read_resource_toml(DEFAULT_REGISTRY)),
+        read_preferred_config_layer("user config", user_config_paths()),
+        read_preferred_config_layer("project config", project_config_paths(project_dir)),
+    )
+    registry: dict[str, Any] = {}
+    for layer in layers:
+        merge_mapping(registry, layer.registry)
+    return LoadedRegistry(registry=registry, layers=layers)
 
 
 def user_config_paths() -> tuple[Path, Path]:
@@ -99,6 +144,10 @@ def project_config_paths(project_dir: Path) -> tuple[Path, Path]:
 
 
 def read_preferred_toml(paths: tuple[Path, Path]) -> dict[str, Any]:
+    return read_preferred_config_layer("", paths).registry
+
+
+def read_preferred_config_layer(label: str, paths: tuple[Path, Path]) -> RegistryLayer:
     preferred_path, fallback_path = paths
     preferred_exists = preferred_path.exists()
     fallback_exists = fallback_path.exists()
@@ -107,8 +156,14 @@ def read_preferred_toml(paths: tuple[Path, Path]) -> dict[str, Any]:
         warn_duplicate_config(preferred_path, fallback_path)
 
     if preferred_exists:
-        return read_toml(preferred_path)
-    return read_toml(fallback_path)
+        return RegistryLayer(format_config_label(label, preferred_path), read_toml(preferred_path))
+    return RegistryLayer(format_config_label(label, fallback_path), read_toml(fallback_path))
+
+
+def format_config_label(label: str, path: Path) -> str:
+    if not label:
+        return str(path)
+    return f"{label}: {path}"
 
 
 def warn_duplicate_config(preferred_path: Path, ignored_path: Path) -> None:
@@ -225,6 +280,94 @@ def parse_check(value: object, default_executable: str) -> CompletionCheck | Non
         return CommandCheck(command)
 
     return _INVALID_CHECK
+
+
+def list_tools(loaded_registry: LoadedRegistry, scope: str | None) -> None:
+    rows = listed_tools(loaded_registry, scope)
+    if not rows:
+        print("No configured tools.")
+        return
+
+    print_table(
+        ("Tool", "Scopes", "Source", "Config loaded from"),
+        tuple((row.name, row.scopes, row.source, row.config_sources) for row in rows),
+    )
+
+
+def listed_tools(loaded_registry: LoadedRegistry, scope: str | None) -> list[ListedTool]:
+    tool_table = loaded_registry.registry.get("tools", {})
+    if not isinstance(tool_table, Mapping):
+        return []
+
+    rows: list[ListedTool] = []
+    for name in sorted(tool_table):
+        config = tool_table[name]
+        if not isinstance(name, str) or not isinstance(config, Mapping):
+            continue
+
+        scopes = parse_scopes(config.get("scopes"))
+        if scopes is None:
+            warn_tool(name, "invalid scopes config")
+            continue
+        if scope is not None and scope not in scopes:
+            continue
+
+        source = parse_source(config)
+        if source is None:
+            warn_tool(name, "invalid source config")
+            continue
+
+        rows.append(
+            ListedTool(
+                name=name,
+                scopes=", ".join(sorted(scopes)),
+                source=format_source(source),
+                config_sources=" -> ".join(tool_config_sources(loaded_registry.layers, name)),
+            )
+        )
+
+    return rows
+
+
+def tool_config_sources(layers: Sequence[RegistryLayer], tool_name: str) -> list[str]:
+    sources: list[str] = []
+    for layer in layers:
+        tool_table = layer.registry.get("tools", {})
+        if isinstance(tool_table, Mapping) and tool_name in tool_table:
+            sources.append(layer.label)
+    return sources
+
+
+def format_source(source: CompletionSource) -> str:
+    if isinstance(source, CommandSource):
+        return f"command: {format_command(source.command)}"
+
+    file_source = source.file
+    if isinstance(file_source, LocalFileSource):
+        return f"file: {file_source.path}"
+    if isinstance(file_source, HttpFileSource):
+        return f"http: {file_source.url}"
+    if isinstance(file_source, GitFileSource):
+        ref = f" @ {file_source.ref}" if file_source.ref else ""
+        return f"git: {file_source.repository}//{file_source.path}{ref}"
+
+    return "unknown"
+
+
+def print_table(headers: tuple[str, ...], rows: tuple[tuple[str, ...], ...]) -> None:
+    widths = tuple(
+        max(len(value) for value in column)
+        for column in zip(headers, *rows, strict=True)
+    )
+    print(format_table_row(headers, widths))
+    print(format_table_row(tuple("-" * width for width in widths), widths))
+    for row in rows:
+        print(format_table_row(row, widths))
+
+
+def format_table_row(row: tuple[str, ...], widths: tuple[int, ...]) -> str:
+    padded_cells = tuple(value.ljust(width) for value, width in zip(row, widths, strict=True))
+    return "  ".join(padded_cells).rstrip()
 
 
 def sync_tools(tools: Sequence[CompletionTool], output_dir: Path) -> None:

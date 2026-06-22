@@ -81,11 +81,14 @@ compinit
 ```text
 zsh-completions-sync project
 zsh-completions-sync global
+zsh-completions-sync list
 ```
 
 `project` 在当前项目内生成补全脚本，输出目录默认为 `.completions/zsh/_<tools>`。
 
 `global` 生成全局工具补全，输出目录默认为 `~/.zsh/completions/_<tools>`。
+
+`list` 美观地列出当前合并后注册表支持的工具、作用域、补全来源，以及每个工具的配置从哪些注册表层加载。可以通过 `--scope global` 或 `--scope project` 只查看某个作用域的工具。
 
 如果后续确实需要清理，可以加 `clean`，逻辑很简单，删除各个路径的补全脚本就好。
 
@@ -108,31 +111,14 @@ zsh-completions-sync global
 格式如下所示：
 
 ```toml
-[global.mise]
+[tools.mise]
+scopes = ["global"]
 command = ["mise", "completion", "zsh"]
-
-[global.gh]
-command = ["gh", "completion", "-s", "zsh"]
-
-[global.starship]
-command = ["starship", "completions", "zsh"]
-
-[project.kubectl]
-command = ["kubectl", "completion", "zsh"]
-
-[project.helm]
-command = ["helm", "completion", "zsh"]
-
-[project.uv]
-command = ["uv", "generate-shell-completion", "zsh"]
-
-[project.pnpm]
-command = ["pnpm", "completion", "zsh"]
 ```
 
-`global` 分组表示这些工具补全只在执行 `zsh-completions-sync global` 时生成到全局目录。
+`scopes = ["global"]` 表示这些工具补全只在执行 `zsh-completions-sync global` 时生成到全局目录。
 
-`project` 分组表示这些工具补全只在执行 `zsh-completions-sync project` 时生成到项目目录。
+`scopes = ["project"]` 表示这些工具补全只在执行 `zsh-completions-sync project` 时生成到项目目录。一个工具可以同时声明多个作用域。
 
 第一版只支持会把补全脚本输出到标准输出的命令。不支持会直接修改 shell 配置的安装型命令。
 
