@@ -94,7 +94,7 @@ zsh-completions-sync list
 
 ## 工具注册表
 
-需要定义一个补全命令注册表，因为不同工具生成补全脚本的命令不统一。
+需要定义一个补全来源注册表，因为不同工具生成补全脚本或发布补全脚本的方式不统一。
 
 注册表分三个级别：
 
@@ -114,13 +114,39 @@ zsh-completions-sync list
 [tools.mise]
 scopes = ["global"]
 command = ["mise", "completion", "zsh"]
+
+[tools.local-tool]
+scopes = ["project"]
+file = "$PWD/completions/_local-tool"
+
+[tools.installing-tool]
+scopes = ["project"]
+check = "installing-tool"
+pre-command = ["installing-tool", "completion", "install", "--shell", "zsh", "--output", ".completions/vendor/_installing-tool"]
+file = ".completions/vendor/_installing-tool"
+
+[tools.remote-tool]
+scopes = ["global"]
+file = "https://example.com/completions/_remote-tool"
+
+[tools.git-tool]
+scopes = ["global", "project"]
+file = "git+https://github.com/example/tool.git//completions/_tool?ref=v1.2.3"
+
+[tools.git-tool-alt]
+scopes = ["project"]
+file = { git = "https://github.com/example/tool.git", path = "completions/_tool", ref = "v1.2.3" }
 ```
 
 `scopes = ["global"]` 表示这些工具补全只在执行 `zsh-completions-sync global` 时生成到全局目录。
 
 `scopes = ["project"]` 表示这些工具补全只在执行 `zsh-completions-sync project` 时生成到项目目录。一个工具可以同时声明多个作用域。
 
-第一版只支持会把补全脚本输出到标准输出的命令。不支持会直接修改 shell 配置的安装型命令。
+每个工具需要配置一个补全来源。`command` 表示运行命令并从标准输出读取补全脚本。`file` 表示直接读取补全脚本，支持普通本地路径、`file://` 路径、HTTP 或 HTTPS 地址、`git+仓库//路径?ref=版本` 字符串，以及 `{ git = "...", path = "...", ref = "..." }` 形式的 Git 文件来源。本地路径会展开环境变量和 `~`，Git 来源的 `ref` 可以省略，省略时读取默认分支。
+
+如果同时配置了 `file` 和 `command`，会优先使用 `file`。`pre-command` 可以在读取补全来源前先运行一个命令，适合那些只能通过安装型命令把补全写到文件的工具；这种情况下可以让 `pre-command` 生成固定路径的补全文件，再用 `file` 读取这个文件。`pre-command` 失败会输出 warn 并跳过该工具，不会覆盖已有补全。
+
+`check` 用来判断当前工具是否可用。没有配置时默认检查工具名本身，也就是 `[tools.mise]` 默认检查 `mise` 是否在 `PATH` 中。可以配置成字符串来检查另一个可执行文件，也可以配置成命令数组来运行自定义检查，还可以配置成 `false` 来关闭检查。`check` 不通过时会静默跳过，所以工具不存在时不会把缺失当成错误。
 
 ## 项目生成逻辑
 
@@ -130,7 +156,7 @@ command = ["mise", "completion", "zsh"]
 
 2. 如果工具没找到就静默跳过。
 
-3. 如果工具生效，就用当前环境中的工具执行补全生成命令。
+3. 如果工具生效，就先运行可选的 `pre-command`，再读取 `command` 或 `file` 配置的补全来源。
 
 4. 生成结果先写临时文件，成功后移动到 `.completions/zsh/_<tools>`。
 
@@ -138,14 +164,14 @@ command = ["mise", "completion", "zsh"]
 
 `zsh-completions-sync global` 只处理注册表中 `global` 分组的工具。
 
-检查命令是否在 `PATH` 中可用，然后执行对应补全生成命令。
+先执行 `check` 判断工具是否可用，然后运行可选的 `pre-command`，再读取对应补全来源。
 
 全局输出目录只保存一份当前全局环境对应的补全脚本。
 
 ## 错误处理
 
-如果补全命令失败，不覆盖已有补全文件。
+如果 `pre-command` 失败、补全命令失败，或者补全文件读取失败，不覆盖已有补全文件。
 
-如果注册表里的工具命令不存在，静默失败。
+如果 `check` 判断工具不存在，静默失败。
 
 如果对应目录不存在，命令自动创建。

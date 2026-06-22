@@ -21,6 +21,7 @@ from zsh_completions_sync.sources import (
     GitFileSource,
     HttpFileSource,
     LocalFileSource,
+    command_exists,
     format_command,
     parse_command,
     parse_source,
@@ -43,6 +44,7 @@ class CompletionTool:
     name: str
     source: CompletionSource
     check: "CompletionCheck | None"
+    pre_command: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,7 @@ class LoadedRegistry:
 class ListedTool:
     name: str
     scopes: str
+    pre_command: str
     source: str
     config_sources: str
 
@@ -261,10 +264,16 @@ def parse_tool(name: str, config: Mapping[str, Any]) -> CompletionTool | None:
         warn_tool(name, "invalid check config")
         return None
 
-    return CompletionTool(name=name, source=source, check=check)
+    pre_command = parse_pre_command(config.get("pre-command"))
+    if pre_command is _INVALID_PRE_COMMAND:
+        warn_tool(name, "invalid pre-command config")
+        return None
+
+    return CompletionTool(name=name, source=source, check=check, pre_command=pre_command)
 
 
 _INVALID_CHECK = object()
+_INVALID_PRE_COMMAND = object()
 
 
 def parse_check(value: object, default_executable: str) -> CompletionCheck | None | object:
@@ -282,6 +291,16 @@ def parse_check(value: object, default_executable: str) -> CompletionCheck | Non
     return _INVALID_CHECK
 
 
+def parse_pre_command(value: object) -> tuple[str, ...] | None | object:
+    if value is None:
+        return None
+
+    command = parse_command(value)
+    if command is None:
+        return _INVALID_PRE_COMMAND
+    return command
+
+
 def list_tools(loaded_registry: LoadedRegistry, scope: str | None) -> None:
     rows = listed_tools(loaded_registry, scope)
     if not rows:
@@ -289,8 +308,8 @@ def list_tools(loaded_registry: LoadedRegistry, scope: str | None) -> None:
         return
 
     print_table(
-        ("Tool", "Scopes", "Source", "Config loaded from"),
-        tuple((row.name, row.scopes, row.source, row.config_sources) for row in rows),
+        ("Tool", "Scopes", "Pre-command", "Source", "Config loaded from"),
+        tuple((row.name, row.scopes, row.pre_command, row.source, row.config_sources) for row in rows),
     )
 
 
@@ -316,11 +335,16 @@ def listed_tools(loaded_registry: LoadedRegistry, scope: str | None) -> list[Lis
         if source is None:
             warn_tool(name, "invalid source config")
             continue
+        pre_command = parse_pre_command(config.get("pre-command"))
+        if pre_command is _INVALID_PRE_COMMAND:
+            warn_tool(name, "invalid pre-command config")
+            continue
 
         rows.append(
             ListedTool(
                 name=name,
                 scopes=", ".join(sorted(scopes)),
+                pre_command=format_optional_command(pre_command),
                 source=format_source(source),
                 config_sources=" -> ".join(tool_config_sources(loaded_registry.layers, name)),
             )
@@ -354,6 +378,12 @@ def format_source(source: CompletionSource) -> str:
     return "unknown"
 
 
+def format_optional_command(command: tuple[str, ...] | None | object) -> str:
+    if isinstance(command, tuple):
+        return format_command(command)
+    return "-"
+
+
 def print_table(headers: tuple[str, ...], rows: tuple[tuple[str, ...], ...]) -> None:
     widths = tuple(
         max(len(value) for value in column)
@@ -380,6 +410,11 @@ def sync_tool(tool: CompletionTool, output_dir: Path) -> None:
     if not tool_enabled(tool.check):
         return
 
+    pre_command_error = run_pre_command(tool.pre_command)
+    if pre_command_error is not None:
+        warn_tool(tool.name, pre_command_error)
+        return
+
     result = read_source(tool.source)
     if result.error is not None:
         warn_tool(tool.name, result.error)
@@ -387,6 +422,32 @@ def sync_tool(tool: CompletionTool, output_dir: Path) -> None:
 
     destination = output_dir / f"_{tool.name}"
     write_atomic(destination, result.content or b"")
+
+
+def run_pre_command(command: tuple[str, ...] | None) -> str | None:
+    if command is None:
+        return None
+    if not command_exists(command):
+        return f"pre-command not found: {command[0]}"
+
+    try:
+        result = subprocess.run(
+            command,
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+    except OSError as error:
+        return f"failed to run pre-command {format_command(command)}: {error}"
+
+    if result.returncode == 0:
+        return None
+
+    message = f"pre-command failed with exit code {result.returncode}: {format_command(command)}"
+    stderr = result.stderr.decode(errors="replace").strip()
+    if stderr:
+        message = f"{message}; {stderr}"
+    return message
 
 
 def tool_enabled(check: CompletionCheck | None) -> bool:
