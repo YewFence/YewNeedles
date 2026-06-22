@@ -57,3 +57,8 @@ command = ["rustup", "completions", "zsh", "cargo"]
 [tools.rustup]
 scopes = ["global", "project"]
 command = ["rustup", "completions", "zsh"]
+
+# Bitwarden CLI
+[tools.bw]
+scopes = ["global"]
+command = ["bw", "completion", "--shell", "zsh"]
