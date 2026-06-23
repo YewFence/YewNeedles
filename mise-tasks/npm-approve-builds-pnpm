@@ -1,9 +1,10 @@
 #!/usr/bin/env python
-# MISE description "Approve skipped dependency builds for a mise npm:* tool installed via pnpm"
-# USAGE arg "<tool>" help="Installed npm tool name or full mise spec, e.g. @larksuite/cli or npm:@larksuite/cli"
-# USAGE flag "--all" help="Approve all ignored builds without prompting"
-# USAGE flag "-r --rebuild" help="Run pnpm install after approval to execute approved builds"
-# USAGE flag "-n --dry-run" help="Resolve paths and show ignored builds without approving"
+#MISE description "Approve skipped dependency builds for a mise npm:* tool installed via pnpm"
+#USAGE arg "<npm_tool>" help="Installed npm tool name or full mise spec, e.g. @larksuite/cli or npm:@larksuite/cli"
+#USAGE complete "npm_tool" run="./packages/mise-completions/npm-tools"
+#USAGE flag "--all" help="Approve all ignored builds without prompting"
+#USAGE flag "-r --rebuild" help="Run pnpm install after approval to execute approved builds"
+#USAGE flag "-n --dry-run" help="Resolve paths and show ignored builds without approving"
 
 from __future__ import annotations
 
@@ -95,7 +96,7 @@ def resolve_pnpm_project_dir(install_dir: Path) -> Path | None:
 
 
 def main() -> None:
-    tool_input = os.environ["usage_tool"]
+    tool_input = os.environ["usage_npm_tool"]
     tool_spec = normalize_tool_spec(tool_input)
 
     if shutil.which("pnpm") is None:

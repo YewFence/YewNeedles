@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+set -eu
+
+mise list --json | jq -r 'keys[] | select(startswith("npm:"))'

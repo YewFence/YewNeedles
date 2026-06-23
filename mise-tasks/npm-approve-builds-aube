@@ -1,0 +1,156 @@
+#!/usr/bin/env python
+#MISE description "Approve skipped dependency builds for a mise npm:* tool installed via aube"
+#USAGE arg "<npm_tool>" help="Installed npm tool name or full mise spec, e.g. @tobilu/qmd or npm:@tobilu/qmd"
+#USAGE complete "npm_tool" run="./packages/mise-completions/npm-tools"
+#USAGE flag "--all" help="Approve all ignored builds without prompting"
+#USAGE flag "-r --rebuild" help="Run aube rebuild after approval to execute the approved scripts"
+#USAGE flag "-n --dry-run" help="Resolve paths and show ignored builds without approving"
+
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+
+def eprint(message: str) -> None:
+    print(message, file=sys.stderr)
+
+
+def is_true(name: str) -> bool:
+    return os.environ.get(name, "false") == "true"
+
+
+def normalize_tool_spec(tool_input: str) -> str:
+    if tool_input.startswith("npm:"):
+        return tool_input
+    return f"npm:{tool_input}"
+
+
+def run_streaming(args: list[str]) -> None:
+    sys.stdout.flush()
+    sys.stderr.flush()
+    result = subprocess.run(args, check=False)
+    if result.returncode != 0:
+        raise SystemExit(result.returncode)
+
+
+def resolve_install_dir(tool_spec: str) -> Path:
+    result = subprocess.run(
+        ["mise", "where", tool_spec],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    if result.returncode != 0:
+        eprint(
+            f"Unable to resolve '{tool_spec}'. Install it first or pass the exact installed npm: tool name."
+        )
+        raise SystemExit(1)
+
+    install_dir = result.stdout.strip()
+    if not install_dir:
+        eprint(
+            f"Unable to resolve '{tool_spec}'. Install it first or pass the exact installed npm: tool name."
+        )
+        raise SystemExit(1)
+
+    return Path(install_dir)
+
+
+def is_aube_project_dir(entry: Path) -> bool:
+    return (entry / "package.json").is_file() and (entry / "aube-lock.yaml").is_file()
+
+
+def has_aube_install_state(entry: Path) -> bool:
+    return (
+        (entry / "node_modules" / ".aube-state").is_dir()
+        or (entry / "node_modules" / ".aube").is_dir()
+    )
+
+
+def project_candidates(install_dir: Path) -> list[Path]:
+    candidates: list[Path] = []
+    seen: set[Path] = set()
+
+    def append_if_project(entry: Path) -> None:
+        if entry.is_dir() and is_aube_project_dir(entry):
+            resolved = entry.resolve(strict=True)
+            if resolved not in seen:
+                seen.add(resolved)
+                candidates.append(resolved)
+
+    append_if_project(install_dir)
+
+    for entry in sorted(install_dir.iterdir(), key=lambda item: item.name):
+        if not entry.is_dir():
+            continue
+
+        append_if_project(entry)
+
+        if entry.name == "global-aube":
+            for nested in sorted(entry.iterdir(), key=lambda item: item.name):
+                append_if_project(nested)
+
+    return candidates
+
+
+def resolve_aube_project_dir(install_dir: Path) -> Path | None:
+    candidates = project_candidates(install_dir)
+    if len(candidates) == 1:
+        return candidates[0].resolve(strict=True)
+
+    stateful_candidates = [
+        entry for entry in candidates if has_aube_install_state(entry)
+    ]
+    if len(stateful_candidates) == 1:
+        return stateful_candidates[0].resolve(strict=True)
+
+    return None
+
+
+def main() -> None:
+    tool_input = os.environ["usage_npm_tool"]
+    tool_spec = normalize_tool_spec(tool_input)
+
+    if shutil.which("aube") is None:
+        eprint("aube is not on PATH. Install it first with mise.")
+        raise SystemExit(1)
+
+    install_dir = resolve_install_dir(tool_spec)
+
+    approve_dir = resolve_aube_project_dir(install_dir)
+    if approve_dir is None:
+        eprint(f"Could not find an aube project under '{install_dir}'.")
+        eprint("This task only applies to npm tools installed by mise through aube.")
+        raise SystemExit(1)
+
+    print(f"tool: {tool_spec}")
+    print(f"install dir: {install_dir}")
+    print(f"aube project: {approve_dir}")
+    print()
+
+    run_streaming(["aube", "--dir", str(approve_dir), "ignored-builds"])
+
+    if is_true("usage_dry_run"):
+        return
+
+    approve_args = ["aube", "--dir", str(approve_dir), "approve-builds"]
+    if is_true("usage_all"):
+        approve_args.append("--all")
+    run_streaming(approve_args)
+
+    if is_true("usage_rebuild"):
+        run_streaming(["aube", "--dir", str(approve_dir), "rebuild"])
+        return
+
+    print()
+    print("aube approve-builds only records approval.")
+    print("Re-run with --rebuild if you want to execute the approved scripts now.")
+
+
+if __name__ == "__main__":
+    main()
