@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# MISE description "Clean pasted journalctl lines by removing the syslog timestamp and hostname prefix"
+#MISE description="Clean pasted journalctl lines by removing the syslog timestamp and hostname prefix"
 
 from __future__ import annotations
 

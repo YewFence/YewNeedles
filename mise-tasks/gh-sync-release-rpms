@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-# MISE description "在 Fedora/RHEL 系发行版按 tools.toml 同步 GitHub release RPM"
-# USAGE flag "-r --retries <retries>" help="Download retry count, defaults to 3"
-# USAGE flag "-t --tools-file <tools_file>" help="Tools file used for sync, defaults to tools.toml"
-# USAGE flag "-f --force" help="Install even when the installed RPM version already matches"
-# USAGE flag "-n --dry-run" help="Show what would be installed without downloading or installing"
+#MISE description="在 Fedora/RHEL 系发行版按 tools.toml 同步 GitHub release RPM"
+#USAGE flag "-r --retries <retries>" help="Download retry count, defaults to 3"
+#USAGE flag "-t --tools-file <tools_file>" help="Tools file used for sync, defaults to tools.toml"
+#USAGE flag "-f --force" help="Install even when the installed RPM version already matches"
+#USAGE flag "-n --dry-run" help="Show what would be installed without downloading or installing"
 
 from __future__ import annotations
 

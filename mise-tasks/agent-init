@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description "Initialize mise, Codex, cc-switch, and WebDAV agent config"
+#MISE description="Initialize mise, Codex, cc-switch, and WebDAV agent config"
 
 set -euo pipefail
 

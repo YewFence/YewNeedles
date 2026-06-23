@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-# MISE description "Set a jj bookmark to the previous change and push"
-# USAGE arg "[bookmark]" help="Bookmark name to set before pushing, default main"
+#MISE description="Set a jj bookmark to the previous change and push"
+#USAGE arg "[bookmark]" help="Bookmark name to set before pushing, default main"
 
 from __future__ import annotations
 

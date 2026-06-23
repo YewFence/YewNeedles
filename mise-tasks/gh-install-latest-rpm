@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-# MISE description "在 Fedora/RHEL 系发行版安装单个 GitHub release RPM"
-# USAGE arg "<repo>" help="GitHub repository in owner/name form"
-# USAGE flag "-p --pattern <pattern>" help="Substring used before automatic architecture filtering when a release has multiple RPMs"
-# USAGE flag "-r --retries <retries>" help="Download retry count, defaults to 3"
-# USAGE flag "-n --dry-run" help="Show what would be installed without downloading or installing"
+#MISE description="在 Fedora/RHEL 系发行版安装单个 GitHub release RPM"
+#USAGE arg "<repo>" help="GitHub repository in owner/name form"
+#USAGE flag "-p --pattern <pattern>" help="Substring used before automatic architecture filtering when a release has multiple RPMs"
+#USAGE flag "-r --retries <retries>" help="Download retry count, defaults to 3"
+#USAGE flag "-n --dry-run" help="Show what would be installed without downloading or installing"
 
 from __future__ import annotations
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description "Back up /boot and /boot/efi on a Fedora laptop"
+#MISE description="Back up /boot and /boot/efi on a Fedora laptop"
 
 set -euo pipefail
 

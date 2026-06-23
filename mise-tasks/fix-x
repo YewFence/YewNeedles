@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description "Add a missing executable bit to a file installed by mise"
+#MISE description="Add a missing executable bit to a file installed by mise"
 #USAGE arg "<tool>" help="Installed mise tool name or full mise spec, e.g. cc-switch or npm:@scope/pkg"
 #USAGE arg "[executable]" help="Executable file name to chmod, defaults to the tool name"
 

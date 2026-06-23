@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#MISE description "Approve skipped dependency builds for a mise npm:* tool installed via pnpm"
+#MISE description="Approve skipped dependency builds for a mise npm:* tool installed via pnpm"
 #USAGE arg "<npm_tool>" help="Installed npm tool name or full mise spec, e.g. @larksuite/cli or npm:@larksuite/cli"
 #USAGE complete "npm_tool" run="./packages/mise-completions/npm-tools"
 #USAGE flag "--all" help="Approve all ignored builds without prompting"

@@ -6,47 +6,6 @@ jq = "latest"
 python = "latest"
 uv = "latest"
 
-[tasks."agent-init"]
-description = "初始化 mise、Codex、cc-switch 并配置 WebDAV"
-file = "mise-tasks/agent-init"
-
-[tasks."fix-x"]
-description = "为 mise 安装工具的可执行文件补充 +x 权限"
-file = "mise-tasks/fix-x"
-
-[tasks."gh-auth-setup-git-local"]
-description = "用 ~/.gitconfig.local 执行 gh auth setup-git 并检查 include 配置"
-file = "mise-tasks/gh-auth-setup-git-local"
-
-[tasks."gh-install-latest-rpm"]
-description = "在 Fedora/RHEL 系发行版安装单个 GitHub release RPM"
-file = "mise-tasks/gh-install-latest-rpm"
-
-[tasks."gh-sync-release-rpms"]
-description = "在 Fedora/RHEL 系发行版按 tools.toml 同步 GitHub release RPM"
-file = "mise-tasks/gh-sync-release-rpms"
-
-[tasks."fedora-boot-backup"]
-description = "备份 Fedora 笔记本的 /boot 和 /boot/efi"
-file = "mise-tasks/fedora-boot-backup"
-
-[tasks."zsh-history-clean-secrets"]
-description = "用 gitleaks 扫描 ~/.zsh_history 并删除带敏感信息的行"
-file = "mise-tasks/zsh-history-clean-secrets"
-
-[tasks."jjpush"]
-description = "将指定 bookmark 指向上一个 change 并执行 jj git push"
-file = "mise-tasks/jjpush"
-
-[tasks."journalctl-clean"]
-description = "清洗粘贴的 journalctl 日志，移除前置时间戳和 hostname"
-raw = true
-file = "mise-tasks/journalctl-clean"
-
-[tasks."shizuku"]
-description = "通过 adb 启动平板的 Shizuku 服务"
-file = "mise-tasks/shizuku"
-
 [tasks."ops:shell-volumes"]
 description = "打开带有简单工具的 shell 以简单管理指定的 named volume"
 run = "./volume-tools/volume-shell/open.sh"
@@ -62,7 +21,3 @@ file = "volume-tools/volume-copy/volume_copy.py"
 [tasks."ops:relabel-volume"]
 description = "原地重建 Docker 命名卷并更新它的 labels"
 file = "volume-tools/volume-relabel/volume_relabel.py"
-
-[tasks."mise:system-reshim"]
-description = "重新为系统范围内的工具安装 shims"
-run = "sudo MISE_SHIMS_DIR=/usr/local/share/mise/shims mise reshim"
