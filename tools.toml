@@ -32,3 +32,10 @@ repo = "AnInsomniacy/motrix-next"
 package_names = ["MotrixNext", "motrix-next", "motrixnext"]
 # renovate: datasource=github-releases depName=AnInsomniacy/motrix-next versioning=semver
 version = "v3.9.6"
+
+[[github_release_rpms]]
+name = "marktext"
+repo = "marktext/marktext"
+package_names = ["marktext", "MarkText"]
+# renovate: datasource=github-releases depName=marktext/marktext versioning=semver
+version = "v0.19.1"
