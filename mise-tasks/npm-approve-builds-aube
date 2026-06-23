@@ -144,7 +144,10 @@ def main() -> None:
     run_streaming(approve_args)
 
     if is_true("usage_rebuild"):
+        print()
+        print("Running `aube rebuild` to execute approved scripts...")
         run_streaming(["aube", "--dir", str(approve_dir), "rebuild"])
+        print("Done.")
         return
 
     print()
