@@ -24,7 +24,7 @@ name = "paseo"
 repo = "getpaseo/paseo"
 package_names = ["paseo", "Paseo"]
 # renovate: datasource=github-releases depName=getpaseo/paseo versioning=semver
-version = "v0.1.97"
+version = "v0.1.99"
 
 [[github_release_rpms]]
 name = "motrix-next"
