@@ -2,7 +2,6 @@
 gh = "latest"
 gitleaks = "8.30.1"
 jq = "latest"
-"pipx:git+https://github.com/YewFence/YewNeedles.git" = { version = "latest#subdirectory=packages/zsh-completions-sync", uvx_args = "--no-managed-python" }
 python = "latest"
 uv = "latest"
 
