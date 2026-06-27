@@ -20,13 +20,6 @@ package_names = ["biopass-rs"]
 version = "v0.6.11"
 
 [[github_release_rpms]]
-name = "paseo"
-repo = "getpaseo/paseo"
-package_names = ["paseo", "Paseo"]
-# renovate: datasource=github-releases depName=getpaseo/paseo versioning=semver
-version = "v0.1.101"
-
-[[github_release_rpms]]
 name = "motrix-next"
 repo = "AnInsomniacy/motrix-next"
 package_names = ["MotrixNext", "motrix-next", "motrixnext"]

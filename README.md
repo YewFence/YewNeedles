@@ -59,4 +59,8 @@ version = "v1.2.3"
 # 指定的版本号，注意，上面那行 Renovate 注释需要和这个版本号贴着写
 ```
 
-依赖 [Renovate](https://github.com/renovatebot/renovate) 检测 Github Release，通过自定义 regex manager 跟踪 [tools.toml](tools.toml) 里的 `version` 字段，上游发布新 release 时，Renovate 会直接对这些版本开 PR。
+依赖 [Renovate](https://github.com/renovatebot/renovate) 检测 Github Release，通过自定义 regex manager 跟踪 [tools.toml](tools.toml) 里的 `version` 字段，上游发布新 release 时，Renovate 会开 PR 来更新，需要手动合并。
+
+#### 局限性
+
+不会自动 remove 从列表中删除的 rpm 包
