@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#MISE description="Sync ghostty themes from iTerm2-Color-Schemes repository"
+
+set -euo pipefail
+tmp="$(mktemp -d)"
+git clone --depth=1 https://github.com/mbadolato/iTerm2-Color-Schemes.git "$tmp/iTerm2-Color-Schemes"
+
+mkdir -p ~/.config/ghostty/themes
+rsync -a "$tmp/iTerm2-Color-Schemes/ghostty/" ~/.config/ghostty/themes/
+
+rm -rf "$tmp"
