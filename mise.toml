@@ -1,6 +1,6 @@
 [tools]
+betterleaks = "latest"
 gh = "latest"
-gitleaks = "8.30.1"
 jq = "latest"
 python = "latest"
 uv = "latest"
