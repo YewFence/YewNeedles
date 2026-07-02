@@ -3,7 +3,7 @@ name = "cc-switch"
 repo = "farion1231/cc-switch"
 package_names = ["cc-switch", "CC-Switch"]
 # renovate: datasource=github-releases depName=farion1231/cc-switch versioning=semver
-version = "v3.16.4"
+version = "v3.16.5"
 
 [[github_release_rpms]]
 name = "clash-verge-rev"
