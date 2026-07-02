@@ -1,0 +1,577 @@
+#!/usr/bin/env python3
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import select
+import shutil
+import subprocess
+import sys
+import time
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+LEAK_EXIT_CODE = 93
+DEFAULT_STATE_DIR = "~/.local/state/atuin-betterleaks-tail"
+
+
+@dataclass(frozen=True)
+class ScanItem:
+    event: dict[str, Any]
+    command: str
+    start_line: int
+    line_count: int
+
+
+def eprint(message: str) -> None:
+    print(message, file=sys.stderr, flush=True)
+
+
+def require_command(name: str) -> None:
+    if shutil.which(name) is None:
+        eprint(f"{name} 不在 PATH 里。")
+        raise SystemExit(1)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Watch Atuin history tail and scan started commands with betterleaks.",
+    )
+    parser.add_argument(
+        "--state-dir",
+        default=DEFAULT_STATE_DIR,
+        help=f"state directory, defaults to {DEFAULT_STATE_DIR}",
+    )
+    parser.add_argument(
+        "--log-file",
+        default=None,
+        help="findings JSONL path, defaults to <state-dir>/findings.jsonl",
+    )
+    parser.add_argument(
+        "--source",
+        choices=("tail", "stdin"),
+        default="tail",
+        help="read events from atuin history tail or stdin, defaults to tail",
+    )
+    parser.add_argument(
+        "--event",
+        default="started",
+        help="Atuin event kind to scan, defaults to started",
+    )
+    parser.add_argument(
+        "--betterleaks-timeout",
+        type=int,
+        default=5,
+        help="timeout passed to betterleaks in seconds, defaults to 5",
+    )
+    parser.add_argument(
+        "--batch-seconds",
+        type=float,
+        default=300,
+        help="seconds to buffer commands before scanning, defaults to 300",
+    )
+    parser.add_argument(
+        "--no-notify",
+        action="store_true",
+        help="disable notify-send alerts",
+    )
+    parser.add_argument(
+        "--print-findings",
+        action="store_true",
+        help="also print redacted finding records to stdout",
+    )
+    return parser.parse_args()
+
+
+def secure_parent(path: Path) -> None:
+    path.mkdir(parents=True, exist_ok=True)
+    try:
+        path.chmod(0o700)
+    except OSError:
+        pass
+
+
+def touch_private_file(path: Path) -> None:
+    if path.exists():
+        return
+
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    os.close(fd)
+
+
+def start_atuin_tail() -> subprocess.Popen[bytes]:
+    require_command("atuin")
+    return subprocess.Popen(
+        ["atuin", "history", "tail"],
+        stdout=subprocess.PIPE,
+        stderr=None,
+        bufsize=0,
+    )
+
+
+def source_fd(source: str, process: subprocess.Popen[bytes] | None) -> int:
+    if source == "stdin":
+        return sys.stdin.buffer.fileno()
+    if process is None or process.stdout is None:
+        raise RuntimeError("atuin stdout was not captured")
+    return process.stdout.fileno()
+
+
+def read_batch_events(
+    fd: int,
+    batch_seconds: float,
+    wanted_event: str,
+    process: subprocess.Popen[bytes] | None,
+    pending: bytearray,
+) -> tuple[list[dict[str, Any]], bool]:
+    deadline = time.monotonic() + batch_seconds
+    events: list[dict[str, Any]] = []
+    saw_eof = False
+
+    while True:
+        if process is not None and process.poll() is not None:
+            raise SystemExit(process.returncode or 0)
+
+        timeout = max(0.0, deadline - time.monotonic())
+        if timeout == 0:
+            break
+
+        readable, _, _ = select.select([fd], [], [], timeout)
+        if not readable:
+            break
+
+        raw_chunk = os.read(fd, 1024 * 1024)
+        if not raw_chunk:
+            saw_eof = True
+            break
+
+        pending.extend(raw_chunk)
+        while True:
+            try:
+                newline_index = pending.index(10)
+            except ValueError:
+                break
+
+            raw_line = bytes(pending[:newline_index])
+            del pending[: newline_index + 1]
+            event = parse_event(raw_line.decode("utf-8", errors="replace"))
+            if event is not None and should_scan(event, wanted_event):
+                events.append(event)
+
+    if saw_eof and pending:
+        event = parse_event(bytes(pending).decode("utf-8", errors="replace"))
+        pending.clear()
+        if event is not None and should_scan(event, wanted_event):
+            events.append(event)
+
+    return events, saw_eof
+
+
+def parse_event(raw_line: str) -> dict[str, Any] | None:
+    line = raw_line.strip()
+    if not line:
+        return None
+
+    try:
+        data = json.loads(line)
+    except json.JSONDecodeError as error:
+        eprint(f"跳过无法解析的 Atuin JSON 行。{error}")
+        return None
+
+    if not isinstance(data, dict):
+        eprint("跳过非对象的 Atuin JSON 行。")
+        return None
+
+    return data
+
+
+def history_text(history: dict[str, Any], key: str) -> str:
+    value = history.get(key)
+    return value if isinstance(value, str) else ""
+
+
+def parse_betterleaks_report(raw_report: str) -> list[dict[str, Any]]:
+    report = raw_report.strip()
+    if not report:
+        return []
+
+    try:
+        data = json.loads(report)
+    except json.JSONDecodeError as error:
+        eprint(f"无法解析 betterleaks JSON 报告。{error}")
+        raise SystemExit(1) from error
+
+    if data is None:
+        return []
+
+    if not isinstance(data, list):
+        eprint("betterleaks JSON 报告格式不是数组。")
+        raise SystemExit(1)
+
+    return [item for item in data if isinstance(item, dict)]
+
+
+def build_scan_input(events: list[dict[str, Any]]) -> tuple[str, list[ScanItem]]:
+    chunks: list[str] = []
+    items: list[ScanItem] = []
+    next_line = 1
+
+    for event in events:
+        history = event.get("history")
+        if not isinstance(history, dict):
+            continue
+
+        command = history_text(history, "command")
+        if not command:
+            continue
+
+        line_count = command.count("\n") + 1
+        items.append(
+            ScanItem(
+                event=event,
+                command=command,
+                start_line=next_line,
+                line_count=line_count,
+            )
+        )
+        chunks.append(command)
+        chunks.append("\n")
+        next_line += line_count
+
+    return "".join(chunks), items
+
+
+def item_for_finding(finding: dict[str, Any], items: list[ScanItem]) -> ScanItem | None:
+    start_line = finding.get("StartLine")
+    if not isinstance(start_line, int):
+        return None
+
+    for item in items:
+        if item.start_line <= start_line < item.start_line + item.line_count:
+            return item
+
+    return None
+
+
+def localize_finding(finding: dict[str, Any], item: ScanItem) -> dict[str, Any]:
+    localized = dict(finding)
+    line_offset = item.start_line - 1
+    for key in ("StartLine", "EndLine"):
+        value = localized.get(key)
+        if isinstance(value, int):
+            localized[key] = value - line_offset
+    return localized
+
+
+def group_findings_by_item(
+    findings: list[dict[str, Any]],
+    items: list[ScanItem],
+) -> dict[int, tuple[ScanItem, list[dict[str, Any]]]]:
+    grouped: dict[int, tuple[ScanItem, list[dict[str, Any]]]] = {}
+
+    for finding in findings:
+        item = item_for_finding(finding, items)
+        if item is None:
+            eprint("跳过无法映射回 Atuin 事件的 betterleaks 发现。")
+            continue
+
+        item_id = id(item)
+        if item_id not in grouped:
+            grouped[item_id] = (item, [])
+        grouped[item_id][1].append(localize_finding(finding, item))
+
+    return grouped
+
+
+def run_betterleaks(scan_input: str, timeout: int) -> list[dict[str, Any]]:
+    require_command("betterleaks")
+    args = [
+        "betterleaks",
+        "stdin",
+        "--no-banner",
+        "--no-color",
+        "--redact=100",
+        "--ignore-gitleaks-allow",
+        "--report-path",
+        "-",
+        "--report-format",
+        "json",
+        "--exit-code",
+        str(LEAK_EXIT_CODE),
+        "--log-level",
+        "fatal",
+        "--set-attr",
+        "path=atuin-history-command",
+    ]
+    if timeout > 0:
+        args.extend(["--timeout", str(timeout)])
+
+    result = subprocess.run(
+        args,
+        input=scan_input,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    if result.returncode not in {0, LEAK_EXIT_CODE}:
+        stdout = result.stdout.strip()
+        stderr = result.stderr.strip()
+        if stdout:
+            eprint(stdout)
+        if stderr:
+            eprint(stderr)
+        raise SystemExit(result.returncode)
+
+    return parse_betterleaks_report(result.stdout)
+
+
+def line_starts(text: str) -> list[int]:
+    starts = [0]
+    for index, char in enumerate(text):
+        if char == "\n":
+            starts.append(index + 1)
+    return starts
+
+
+def line_column_offset(starts: list[int], line: int, column: int, text_len: int) -> int | None:
+    if line < 1 or column < 1 or line > len(starts):
+        return None
+
+    offset = starts[line - 1] + column - 1
+    if offset < 0:
+        return None
+
+    return min(offset, text_len)
+
+
+def expand_shell_word(command: str, start: int, end: int) -> tuple[int, int]:
+    while start > 0 and not command[start - 1].isspace():
+        start -= 1
+    while end < len(command) and not command[end].isspace():
+        end += 1
+    return start, end
+
+
+def finding_range(finding: dict[str, Any], command: str) -> tuple[int, int] | None:
+    start_line = finding.get("StartLine")
+    end_line = finding.get("EndLine")
+    start_column = finding.get("StartColumn")
+    end_column = finding.get("EndColumn")
+    if not all(isinstance(value, int) for value in (start_line, end_line, start_column, end_column)):
+        return None
+
+    starts = line_starts(command)
+    start = line_column_offset(starts, start_line, start_column, len(command))
+    end = line_column_offset(starts, end_line, end_column + 1, len(command))
+    if start is None or end is None or end <= start:
+        return None
+
+    return expand_shell_word(command, start, end)
+
+
+def redact_by_findings(command: str, findings: list[dict[str, Any]]) -> str:
+    ranges: list[tuple[int, int]] = []
+    for finding in findings:
+        redaction_range = finding_range(finding, command)
+        if redaction_range is not None:
+            ranges.append(redaction_range)
+
+    if not ranges:
+        return "[REDACTED]"
+
+    merged: list[tuple[int, int]] = []
+    for start, end in sorted(ranges):
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+
+    pieces: list[str] = []
+    cursor = 0
+    for start, end in merged:
+        pieces.append(command[cursor:start])
+        pieces.append("[REDACTED]")
+        cursor = end
+    pieces.append(command[cursor:])
+    redacted = "".join(pieces)
+    redacted = " ".join(redacted.split())
+    if len(redacted) > 500:
+        return f"{redacted[:497]}..."
+    return redacted
+
+
+def finding_type(finding: dict[str, Any]) -> str:
+    for key in ("RuleID", "Rule", "DetectorName", "Description", "SecretType"):
+        value = finding.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return "unknown"
+
+
+def finding_types(findings: list[dict[str, Any]]) -> list[str]:
+    return sorted({finding_type(finding) for finding in findings})
+
+
+def build_record(event: dict[str, Any], findings: list[dict[str, Any]]) -> dict[str, Any] | None:
+    history = event.get("history")
+    if not isinstance(history, dict):
+        return None
+
+    command = history_text(history, "command")
+    if not command:
+        return None
+
+    command_hash = hashlib.sha256(command.encode("utf-8")).hexdigest()
+    return {
+        "detected_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "atuin_event": event.get("event"),
+        "atuin_id": history_text(history, "id"),
+        "atuin_timestamp": history_text(history, "timestamp"),
+        "atuin_timestamp_unix_ns": history.get("timestamp_unix_ns"),
+        "cwd": history_text(history, "cwd"),
+        "host": history_text(history, "host"),
+        "user": history_text(history, "user"),
+        "command_sha256": command_hash,
+        "redacted_command": redact_by_findings(command, findings),
+        "finding_count": len(findings),
+        "finding_types": finding_types(findings),
+        "findings": findings,
+    }
+
+
+def append_jsonl(path: Path, record: dict[str, Any]) -> None:
+    with path.open("a", encoding="utf-8") as file:
+        file.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def notify(record: dict[str, Any], no_notify: bool) -> None:
+    if no_notify:
+        return
+    if shutil.which("notify-send") is None:
+        return
+    if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+        return
+
+    atuin_id = record.get("atuin_id") or "(no id)"
+    finding_types_text = ", ".join(record.get("finding_types") or ["unknown"])
+    subprocess.run(
+        [
+            "notify-send",
+            "Atuin history may contain a secret",
+            f"{atuin_id} {finding_types_text}",
+        ],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def should_scan(event: dict[str, Any], wanted_event: str) -> bool:
+    if event.get("event") != wanted_event:
+        return False
+
+    history = event.get("history")
+    if not isinstance(history, dict):
+        return False
+
+    return bool(history_text(history, "command"))
+
+
+def record_finding(
+    item: ScanItem,
+    findings: list[dict[str, Any]],
+    log_file: Path,
+    no_notify: bool,
+    print_findings: bool,
+) -> None:
+    record = build_record(item.event, findings)
+    if record is None:
+        return
+
+    append_jsonl(log_file, record)
+    notify(record, no_notify)
+
+    atuin_id = record.get("atuin_id") or "(no id)"
+    types_text = ", ".join(record["finding_types"])
+    print(f"detected atuin_id={atuin_id} types={types_text}", flush=True)
+    if print_findings:
+        print(json.dumps(record, ensure_ascii=False, sort_keys=True), flush=True)
+
+
+def scan_events(
+    events: list[dict[str, Any]],
+    log_file: Path,
+    timeout: int,
+    no_notify: bool,
+    print_findings: bool,
+) -> None:
+    scan_input, items = build_scan_input(events)
+    if not scan_input:
+        return
+
+    findings = run_betterleaks(scan_input, timeout)
+    if not findings:
+        return
+
+    grouped = group_findings_by_item(findings, items)
+    for item, item_findings in grouped.values():
+        record_finding(
+            item=item,
+            findings=item_findings,
+            log_file=log_file,
+            no_notify=no_notify,
+            print_findings=print_findings,
+        )
+
+
+def main() -> int:
+    args = parse_args()
+    state_dir = Path(args.state_dir).expanduser()
+    secure_parent(state_dir)
+    log_file = Path(args.log_file).expanduser() if args.log_file else state_dir / "findings.jsonl"
+    secure_parent(log_file.parent)
+    touch_private_file(log_file)
+
+    if args.batch_seconds <= 0:
+        eprint("--batch-seconds 必须大于 0。")
+        return 1
+
+    process = start_atuin_tail() if args.source == "tail" else None
+    fd = source_fd(args.source, process)
+    pending = bytearray()
+
+    try:
+        while True:
+            events, saw_eof = read_batch_events(
+                fd=fd,
+                batch_seconds=args.batch_seconds,
+                wanted_event=args.event,
+                process=process,
+                pending=pending,
+            )
+            if events:
+                scan_events(
+                    events=events,
+                    log_file=log_file,
+                    timeout=args.betterleaks_timeout,
+                    no_notify=args.no_notify,
+                    print_findings=args.print_findings,
+                )
+            if saw_eof:
+                break
+    finally:
+        if process is not None and process.poll() is None:
+            process.terminate()
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
