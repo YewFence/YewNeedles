@@ -1,5 +1,7 @@
 from .core import (
     eprint,
+    find_gearlever_appimage,
+    install_release_appimage,
     install_release_rpm,
     parse_retry_count,
     require_command,
@@ -8,6 +10,8 @@ from .core import (
 
 __all__ = [
     "eprint",
+    "find_gearlever_appimage",
+    "install_release_appimage",
     "install_release_rpm",
     "parse_retry_count",
     "require_command",

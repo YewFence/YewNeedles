@@ -2,6 +2,7 @@
 name = "cc-switch"
 repo = "farion1231/cc-switch"
 package_names = ["cc-switch", "CC-Switch"]
+# asset_regex = "x86_64.*\\.rpm$"
 # renovate: datasource=github-releases depName=farion1231/cc-switch versioning=semver
 version = "v3.16.5"
 

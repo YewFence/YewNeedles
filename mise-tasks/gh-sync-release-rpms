@@ -1,7 +1,8 @@
 #!/usr/bin/env python
-#MISE description="在 Fedora/RHEL 系发行版按 tools.toml 同步 GitHub release RPM"
+#MISE description="在 Fedora/RHEL 系发行版按 apps.toml 同步 GitHub release RPM"
 #USAGE flag "-r --retries <retries>" help="Download retry count, defaults to 3"
-#USAGE flag "-t --tools-file <tools_file>" help="Tools file used for sync, defaults to tools.toml"
+#USAGE flag "-a --apps-file <apps_file>" help="Apps file used for sync, defaults to apps.toml"
+#USAGE flag "--tools-file <tools_file>" help="Deprecated alias for --apps-file"
 #USAGE flag "-f --force" help="Install even when the installed RPM version already matches"
 #USAGE flag "-n --dry-run" help="Show what would be installed without downloading or installing"
 
@@ -20,10 +21,10 @@ except ModuleNotFoundError:
 
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC = ROOT / "packages" / "gh-release-rpm" / "src"
+SRC = ROOT / "packages" / "gh-release-download" / "src"
 sys.path.insert(0, str(SRC))
 
-from gh_release_rpm import (
+from gh_release_download import (
     eprint,
     install_release_rpm,
     parse_retry_count,
@@ -39,6 +40,7 @@ class GithubReleaseRpm:
     version: str
     package_names: tuple[str, ...]
     asset_pattern: str = ""
+    asset_regex: str = ""
 
 
 def is_true(name: str) -> bool:
@@ -113,28 +115,30 @@ def package_names_from_entry(entry: dict[str, Any], name: str) -> tuple[str, ...
     return (name,)
 
 
-def load_tools(path: Path) -> list[GithubReleaseRpm]:
+def load_apps(path: Path) -> list[GithubReleaseRpm]:
     if tomllib is None:
         eprint(
-            "Python 3.11 or newer is required to read tools.toml with the standard library tomllib module."
+            "Python 3.11 or newer is required to read apps.toml with the standard library tomllib module."
         )
         raise SystemExit(1)
 
     try:
         raw = tomllib.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        eprint(f"Missing tools file: {path}")
+        eprint(f"Missing apps file: {path}")
         raise SystemExit(1)
     except tomllib.TOMLDecodeError as error:
         eprint(f"Unable to parse {path}: {error}")
         raise SystemExit(1) from error
 
     entries = raw.get("github_release_rpms")
+    if entries is None:
+        return []
     if not isinstance(entries, list):
         eprint(f"{path} must define [[github_release_rpms]] entries.")
         raise SystemExit(1)
 
-    tools: list[GithubReleaseRpm] = []
+    apps: list[GithubReleaseRpm] = []
     for index, entry in enumerate(entries, start=1):
         if not isinstance(entry, dict):
             eprint(f"Entry {index} in {path} is not a table.")
@@ -144,6 +148,7 @@ def load_tools(path: Path) -> list[GithubReleaseRpm]:
         repo = entry.get("repo")
         version = entry.get("version")
         asset_pattern = entry.get("asset_pattern", "")
+        asset_regex = entry.get("asset_regex", "")
         if not isinstance(name, str) or not name:
             eprint(f"Entry {index} in {path} is missing name.")
             raise SystemExit(1)
@@ -156,18 +161,22 @@ def load_tools(path: Path) -> list[GithubReleaseRpm]:
         if not isinstance(asset_pattern, str):
             eprint(f"{name} in {path} has a non-string asset_pattern.")
             raise SystemExit(1)
+        if not isinstance(asset_regex, str):
+            eprint(f"{name} in {path} has a non-string asset_regex.")
+            raise SystemExit(1)
 
-        tools.append(
+        apps.append(
             GithubReleaseRpm(
                 name=name,
                 repo=repo,
                 version=version,
                 package_names=package_names_from_entry(entry, name),
                 asset_pattern=asset_pattern,
+                asset_regex=asset_regex,
             )
         )
 
-    return tools
+    return apps
 
 
 def sync_tool(
@@ -194,6 +203,7 @@ def sync_tool(
         repo=tool.repo,
         version=tool.version,
         pattern=tool.asset_pattern,
+        asset_regex=tool.asset_regex,
         retries=retries,
         dry_run=dry_run,
     )
@@ -202,7 +212,7 @@ def sync_tool(
 
 def main() -> int:
     retries = parse_retry_count(usage_value("retries"))
-    tools_file = Path(usage_value("tools_file", "tools.toml"))
+    apps_file = Path(usage_value("apps_file") or usage_value("tools_file", "apps.toml"))
     dry_run = is_true("usage_dry_run")
     force = is_true("usage_force")
 
@@ -211,7 +221,7 @@ def main() -> int:
     require_command("rpm")
 
     updated_tools: list[str] = []
-    for tool in load_tools(tools_file):
+    for tool in load_apps(apps_file):
         if sync_tool(tool, retries=retries, dry_run=dry_run, force=force):
             updated_tools.append(tool.name)
 

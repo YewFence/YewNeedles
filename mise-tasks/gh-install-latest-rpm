@@ -2,6 +2,7 @@
 #MISE description="在 Fedora/RHEL 系发行版安装单个 GitHub release RPM"
 #USAGE arg "<repo>" help="GitHub repository in owner/name form"
 #USAGE flag "-p --pattern <pattern>" help="Substring used before automatic architecture filtering when a release has multiple RPMs"
+#USAGE flag "--asset-regex <asset_regex>" help="Regex used before automatic architecture filtering when a release has multiple RPMs"
 #USAGE flag "-r --retries <retries>" help="Download retry count, defaults to 3"
 #USAGE flag "-n --dry-run" help="Show what would be installed without downloading or installing"
 
@@ -12,10 +13,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC = ROOT / "packages" / "gh-release-rpm" / "src"
+SRC = ROOT / "packages" / "gh-release-download" / "src"
 sys.path.insert(0, str(SRC))
 
-from gh_release_rpm import (
+from gh_release_download import (
     install_release_rpm,
     parse_retry_count,
     require_command,
@@ -34,6 +35,7 @@ def usage_value(name: str, default: str = "") -> str:
 def main() -> int:
     repo = usage_value("repo")
     pattern = usage_value("pattern")
+    asset_regex = usage_value("asset_regex")
     retries = parse_retry_count(usage_value("retries"))
     dry_run = is_true("usage_dry_run")
 
@@ -49,6 +51,7 @@ def main() -> int:
         repo=repo,
         version=None,
         pattern=pattern,
+        asset_regex=asset_regex,
         retries=retries,
         dry_run=dry_run,
     )

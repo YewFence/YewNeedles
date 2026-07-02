@@ -6,9 +6,9 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Update GitHub release RPM versions declared in tools.toml",
+      "description": "Update GitHub release app versions declared in apps.toml",
       "managerFilePatterns": [
-        "/^tools\\.toml$/"
+        "/^apps\\.toml$/"
       ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s+version = \"(?<currentValue>[^\"]+)\""
