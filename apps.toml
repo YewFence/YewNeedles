@@ -26,3 +26,17 @@ repo = "AnInsomniacy/motrix-next"
 package_names = ["MotrixNext", "motrix-next", "motrixnext"]
 # renovate: datasource=github-releases depName=AnInsomniacy/motrix-next versioning=semver
 version = "v3.9.6"
+
+[[github_release_appimages]]
+name = "paseo"
+repo = "getpaseo/paseo"
+app_name = "Paseo"
+# renovate: datasource=github-releases depName=owner/example versioning=semver
+version = "v0.1.103"
+
+[[github_release_appimages]]
+name = "waywallen"
+repo = "waywallen/waywallen"
+app_name = "Waywallen"
+# renovate: datasource=github-releases depName=owner/example versioning=semver
+version = "v0.2.2"

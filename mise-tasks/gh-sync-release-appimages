@@ -50,6 +50,13 @@ def usage_value(name: str, default: str = "") -> str:
     return os.environ.get(f"usage_{name}", default).strip()
 
 
+def warning(message: str) -> None:
+    prefix = "warning"
+    if os.environ.get("NO_COLOR") is None and os.environ.get("TERM") != "dumb":
+        prefix = "\033[1;33mwarning\033[0m"
+    eprint(f"{prefix}: {message}")
+
+
 def normalize_version(version: str) -> str:
     normalized = version.strip()
     if len(normalized) > 1 and normalized[0] in {"v", "V"} and normalized[1].isdigit():
@@ -142,19 +149,22 @@ def sync_app(
     expected_version = normalize_version(app.version)
 
     if installed is None:
-        print(f"{app.name}: not installed by Gear Lever, install it once first")
+        warning(f"{app.name}: not installed by Gear Lever, install it once first")
         return False
 
     if installed.version is None:
-        eprint(
-            f"warning: {app.name}: unable to locate AppImage version for {installed.path}"
-        )
+        warning(f"{app.name}: unable to locate AppImage version for {installed.path}")
         print(f"{app.name}: installed at {installed.path}, version unknown")
     elif normalize_version(installed.version) == expected_version and not force:
-        print(f"{app.name}: ok ({installed.version})")
+        print(
+            f"{app.name}: ok ({installed.version} from {installed.version_source})"
+        )
         return False
     else:
-        print(f"{app.name}: installed {installed.version}, expected {expected_version}")
+        print(
+            f"{app.name}: installed {installed.version} from "
+            f"{installed.version_source}, expected {expected_version}"
+        )
 
     install_release_appimage(
         name=app.name,

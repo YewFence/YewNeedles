@@ -68,6 +68,7 @@ class InstalledAppImage:
     path: Path
     desktop_file: Path
     version: str | None = None
+    version_source: str | None = None
 
 
 def eprint(message: str) -> None:
@@ -507,9 +508,13 @@ def install_release_rpm(
 
 
 def appimage_file_name(app_name: str) -> str:
-    if app_name.lower().endswith(".appimage"):
-        return app_name
-    return f"{app_name}.AppImage"
+    stem = app_name
+    if stem.lower().endswith(".appimage"):
+        stem = stem[: -len(".appimage")]
+
+    gearlever_name = stem.lower().replace(" ", "_")
+    gearlever_name = re.sub(r"[^\w\._]+", "", f"{gearlever_name}.appimage")
+    return gearlever_name.lower()
 
 
 def appimage_path(app_name: str, destination_dir: Path | None = None) -> Path:
@@ -522,11 +527,21 @@ def appimage_version_path(path: Path) -> Path:
 
 
 def read_installed_appimage_version(path: Path) -> str | None:
+    version = read_installed_appimage_version_with_source(path)[0]
+    return version
+
+
+def read_installed_appimage_version_with_source(path: Path) -> tuple[str | None, str | None]:
     version_path = appimage_version_path(path)
     try:
-        return version_path.read_text(encoding="utf-8").strip() or None
+        version = version_path.read_text(encoding="utf-8").strip() or None
     except FileNotFoundError:
-        return None
+        return None, None
+
+    if version is None:
+        return None, None
+
+    return version, str(version_path)
 
 
 def desktop_applications_dir() -> Path:
@@ -635,12 +650,18 @@ def find_gearlever_appimage(app_name: str) -> InstalledAppImage | None:
         if path.suffix.lower() != ".appimage":
             continue
 
+        desktop_version = values.get("X-AppImage-Version")
+        sidecar_version, sidecar_source = read_installed_appimage_version_with_source(path)
         return InstalledAppImage(
             app_name=values.get("Name") or app_name,
             path=path,
             desktop_file=desktop_file,
-            version=values.get("X-AppImage-Version")
-            or read_installed_appimage_version(path),
+            version=desktop_version or sidecar_version,
+            version_source=(
+                f"{desktop_file} X-AppImage-Version"
+                if desktop_version
+                else sidecar_source
+            ),
         )
 
     return None

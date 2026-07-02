@@ -82,8 +82,12 @@ AppImage 本身没有一个所有应用都会提供的标准版本字段，Gear 
 
 如果第一次安装后 `mise run gh-sync-release-appimages -- --dry-run` 提示找不到版本，可以在 Gear Lever 指向的 AppImage 文件旁边手动创建同名 `.version` 文件，内容写 `apps.toml` 里当前的 `version` 值即可，后续脚本更新时会自动维护这个文件并同步更新桌面入口里的 `X-AppImage-Version`。
 
+同步任务会在命中版本时输出版本来源，来源可能是桌面入口里的 `X-AppImage-Version`，也可能是 AppImage 旁边的 `.version` 文件；如果 Gear Lever 没有安装过这个应用，或者两处都找不到版本，会输出高亮的 warning。
+
+本地 AppImage 文件名沿用 Gear Lever 的命名规则，使用应用名而不是 release 资产名，空格转下划线，移除除字母数字、下划线和点以外的字符，再写成全小写的 `<app-name>.appimage`。
+
 ```bash
-printf '%s\n' 'v1.2.3' > "$HOME/AppImages/Example.AppImage.version"
+printf '%s\n' 'v1.2.3' > "$HOME/AppImages/example.appimage.version"
 ```
 
 #### 局限性
