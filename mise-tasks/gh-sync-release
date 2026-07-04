@@ -1,0 +1,21 @@
+#!/usr/bin/env python
+#MISE description="按 apps.toml 同步 GitHub release 应用"
+#USAGE flag "-n --dry-run" help="Show what would be installed without downloading or installing"
+#USAGE flag "-t --type <type>" help="Sync only one app type" {
+#USAGE   choices "rpm" "appimage"
+#USAGE }
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SRC = ROOT / "packages" / "gh-release-download" / "src"
+sys.path.insert(0, str(SRC))
+
+from gh_release_download.sync import sync_release_main
+
+
+if __name__ == "__main__":
+    raise SystemExit(sync_release_main())
