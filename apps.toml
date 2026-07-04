@@ -33,10 +33,3 @@ repo = "getpaseo/paseo"
 app_name = "Paseo"
 # renovate: datasource=github-releases depName=owner/example versioning=semver
 version = "v0.1.103"
-
-[[github_release_appimages]]
-name = "waywallen"
-repo = "waywallen/waywallen"
-app_name = "Waywallen"
-# renovate: datasource=github-releases depName=owner/example versioning=semver
-version = "v0.2.2"
