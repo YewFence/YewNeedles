@@ -33,3 +33,12 @@ repo = "getpaseo/paseo"
 app_name = "Paseo"
 # renovate: datasource=github-releases depName=owner/example versioning=semver
 version = "v0.1.103"
+
+[[apps.kpackage]]
+name = "waywallen-display-kde"
+repo = "waywallen/waywallen-display"
+package_id = "org.waywallen.kde"
+package_type = "Plasma/Wallpaper"
+asset_regex = "^waywallen-kde-.*-embed\\.zip$"
+# renovate: datasource=github-releases depName=waywallen/waywallen-display versioning=semver
+version = "v0.2.8"

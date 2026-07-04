@@ -2,7 +2,7 @@
 #MISE description="按 apps.toml 同步 GitHub release 应用"
 #USAGE flag "-n --dry-run" help="Show what would be installed without downloading or installing"
 #USAGE flag "-t --type <type>" help="Sync only one app type" {
-#USAGE   choices "rpm" "appimage"
+#USAGE   choices "rpm" "appimage" "kpackage"
 #USAGE }
 
 from __future__ import annotations

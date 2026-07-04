@@ -28,7 +28,7 @@ mise tasks
 
 `mise-tasks/gh-sync-release` 会读取 `apps.toml`、按 `--type` 指定的类型检查本地版本、决定哪些工具需要更新，然后逐个复用对应的安装流程。
 
-RPM 会检查当前系统里已经安装的包版本，AppImage 会通过 Gear Lever 生成的桌面入口定位应用并检查 `X-AppImage-Version` 或同名 `.version` 文件。
+RPM 会检查当前系统里已经安装的包版本，AppImage 会通过 Gear Lever 生成的桌面入口定位应用并检查 `X-AppImage-Version` 或同名 `.version` 文件，KPackage 会通过 `kpackagetool6` 定位 KDE 包并读取脚本维护的 `.gh-release-download-version`。
 
 ### 使用方法
 
@@ -45,6 +45,8 @@ mise run gh-sync-release -- --dry-run
 mise run gh-sync-release -- --type rpm
 # 只同步 AppImage
 mise run gh-sync-release -- --type appimage
+# 只同步 KDE KPackage
+mise run gh-sync-release -- --type kpackage
 ```
 
 #### 配置示例
@@ -72,6 +74,17 @@ repo = "owner/example"
 # 匹配 Gear Lever 生成的桌面入口 Name、X-AppImage-Name 或 AppImage 文件名
 app_name = "Example"
 asset_regex = "x86_64.*\\.AppImage$"
+# renovate: datasource=github-releases depName=owner/example versioning=semver
+version = "v1.2.3"
+
+[[apps.kpackage]]
+name = "example-kde"
+repo = "owner/example"
+# KDE 插件标识
+package_id = "org.example.kde"
+# kpackagetool6 --type 使用的类型
+package_type = "Plasma/Wallpaper"
+asset_regex = "^example-kde-.*\\.zip$"
 # renovate: datasource=github-releases depName=owner/example versioning=semver
 version = "v1.2.3"
 ```

@@ -214,6 +214,10 @@ def appimage_assets(release: dict[str, object]) -> list[dict[str, object]]:
     return assets_with_extension(release, ".appimage")
 
 
+def zip_assets(release: dict[str, object]) -> list[dict[str, object]]:
+    return assets_with_extension(release, ".zip")
+
+
 def current_arch() -> tuple[str, str] | None:
     machine = platform.machine().lower()
     arch = ARCH_ALIASES.get(machine)
@@ -367,6 +371,21 @@ def choose_appimage_asset(
     return choose_release_asset(
         assets,
         asset_label="AppImage",
+        asset_pattern=asset_pattern,
+        asset_regex=asset_regex,
+        config_hint="apps.toml",
+    )
+
+
+def choose_zip_asset(
+    assets: list[dict[str, object]],
+    *,
+    asset_pattern: str = "",
+    asset_regex: str = "",
+) -> dict[str, object]:
+    return choose_release_asset(
+        assets,
+        asset_label="ZIP",
         asset_pattern=asset_pattern,
         asset_regex=asset_regex,
         config_hint="apps.toml",
