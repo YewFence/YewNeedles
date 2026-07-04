@@ -31,7 +31,7 @@ version = "v3.9.6"
 name = "paseo"
 repo = "getpaseo/paseo"
 app_name = "Paseo"
-# renovate: datasource=github-releases depName=owner/example versioning=semver
+# renovate: datasource=github-releases depName=getpaseo/paseo versioning=semver
 version = "v0.1.103"
 
 [[apps.kpackage]]
