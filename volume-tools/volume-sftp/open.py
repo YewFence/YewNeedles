@@ -1,4 +1,21 @@
 #!/usr/bin/env python3
+#USAGE arg "[action_or_volume]" help="start/up 或现有 Docker 命名卷；也可用 stop/logs/status"
+#USAGE complete "action_or_volume" run="(printf '%s\n' start up stop down logs status ps; ./packages/mise-completions/volume-locations volumes '{{words[CURRENT] | escape_xml}}')"
+#USAGE arg "[volume]" help="显式使用 start/up 时要暴露的 Docker 命名卷"
+#USAGE complete "volume" run="./packages/mise-completions/volume-locations volumes '{{words[CURRENT] | escape_xml}}'"
+#USAGE flag "--ro" help="只读挂载（默认）"
+#USAGE flag "--rw --write" help="读写挂载"
+#USAGE flag "--port <port>" help="监听端口"
+#USAGE flag "--bind <address>" help="监听 IP 地址"
+#USAGE flag "--user <user>" help="SFTP 用户名"
+#USAGE flag "--authorized-key <file>" help="公钥或 authorized_keys 文件"
+#USAGE flag "--uid <uid>" help="容器内用户 UID"
+#USAGE flag "--gid <gid>" help="容器内用户 GID"
+#USAGE flag "--max-auth-tries <count>" help="每次连接的最大认证次数"
+#USAGE flag "--allow-root-login" help="允许 root 使用配置的公钥登录"
+#USAGE flag "--no-allow-root-login" help="禁止 root 登录"
+#USAGE flag "--allow-ssh" help="同时允许普通 SSH 会话"
+#USAGE flag "--no-allow-ssh" help="禁止普通 SSH 会话"
 from __future__ import annotations
 
 import argparse
@@ -24,6 +41,43 @@ ACTION_ALIASES = {
     "status": "status",
     "ps": "status",
 }
+
+
+def argv_from_usage(argv: list[str]) -> list[str]:
+    if argv or not os.environ.get("usage_action_or_volume"):
+        return argv
+
+    rebuilt = [os.environ["usage_action_or_volume"]]
+    if volume := os.environ.get("usage_volume"):
+        rebuilt.append(volume)
+
+    if os.environ.get("usage_rw") == "true":
+        rebuilt.append("--rw")
+    elif os.environ.get("usage_ro") == "true":
+        rebuilt.append("--ro")
+
+    for name, flag in (
+        ("port", "--port"),
+        ("bind", "--bind"),
+        ("user", "--user"),
+        ("authorized_key", "--authorized-key"),
+        ("uid", "--uid"),
+        ("gid", "--gid"),
+        ("max_auth_tries", "--max-auth-tries"),
+    ):
+        if value := os.environ.get(f"usage_{name}"):
+            rebuilt.extend((flag, value))
+
+    for name, positive, negative in (
+        ("allow_root_login", "--allow-root-login", "--no-allow-root-login"),
+        ("allow_ssh", "--allow-ssh", "--no-allow-ssh"),
+    ):
+        if os.environ.get(f"usage_{name}") == "true":
+            rebuilt.append(positive)
+        elif os.environ.get(f"usage_no_{name}") == "true":
+            rebuilt.append(negative)
+
+    return rebuilt
 
 
 def fail(message: str) -> None:
@@ -264,6 +318,7 @@ def handle_start(argv: list[str]) -> int:
 
 
 def main(argv: list[str]) -> int:
+    argv = argv_from_usage(argv)
     action, remaining = parse_action(argv)
     ensure_docker()
 

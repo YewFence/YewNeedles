@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+from html import unescape
+from pathlib import Path
+
+
+PATH_PREFIXES = ("path:", "bind:")
+
+
+def docker_volumes() -> list[str]:
+    try:
+        result = subprocess.run(
+            ["docker", "volume", "ls", "--format", "{{.Name}}"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return []
+
+    if result.returncode != 0:
+        return []
+    return sorted(filter(None, result.stdout.splitlines()))
+
+
+def split_path(value: str) -> tuple[str, str]:
+    if value.endswith(("/", os.sep)):
+        return value, ""
+
+    parent, separator, name = value.rpartition("/")
+    if separator:
+        return f"{parent}/", name
+    return "", value
+
+
+def directory_candidates(value: str) -> list[str]:
+    typed_parent, name_prefix = split_path(value)
+    lookup_parent = Path(typed_parent or ".").expanduser()
+
+    try:
+        entries = sorted(
+            (entry for entry in lookup_parent.iterdir() if entry.is_dir()),
+            key=lambda entry: entry.name,
+        )
+    except OSError:
+        return []
+
+    candidates = []
+    for entry in entries:
+        if not name_prefix.startswith(".") and entry.name.startswith("."):
+            continue
+        if not entry.name.startswith(name_prefix):
+            continue
+        candidates.append(f"{typed_parent}{entry.name}/")
+    return candidates
+
+
+def is_path_input(value: str) -> bool:
+    return (
+        value in {".", "..", "~"}
+        or value.startswith(("./", "../", "/", "~/"))
+        or "/" in value
+        or "\\" in value
+        or bool(Path(value).anchor)
+    )
+
+
+def complete_locations(mode: str, current: str) -> list[str]:
+    for prefix in PATH_PREFIXES:
+        if current.startswith(prefix):
+            raw = current[len(prefix) :]
+            return [f"{prefix}{candidate}" for candidate in directory_candidates(raw)]
+
+    if current.startswith("volume:"):
+        prefix = "volume:"
+        raw = current[len(prefix) :]
+        return [f"{prefix}{name}" for name in docker_volumes() if name.startswith(raw)]
+
+    if mode == "volumes":
+        return [name for name in docker_volumes() if name.startswith(current)]
+
+    if is_path_input(current):
+        if current in {".", "..", "~"}:
+            return [f"{current}/"]
+        return directory_candidates(current)
+
+    directories = directory_candidates(current)
+    volumes = [name for name in docker_volumes() if name.startswith(current)]
+    return sorted(set(directories + volumes))
+
+
+def main() -> int:
+    if len(sys.argv) != 3 or sys.argv[1] not in {"locations", "volumes"}:
+        raise SystemExit(f"usage: {sys.argv[0]} <locations|volumes> <escaped-current-word>")
+
+    mode = sys.argv[1]
+    current = unescape(sys.argv[2])
+    print(*complete_locations(mode, current), sep="\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

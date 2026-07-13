@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 #USAGE arg "<source>" help="已有宿主机目录或 Docker 命名卷"
+#USAGE complete "source" run="./packages/mise-completions/volume-locations locations '{{words[CURRENT] | escape_xml}}'"
 #USAGE arg "<target>" help="宿主机目录或 Docker 命名卷"
+#USAGE complete "target" run="./packages/mise-completions/volume-locations locations '{{words[CURRENT] | escape_xml}}'"
 #USAGE flag "--delete" help="删除目标中源不存在的文件"
 from __future__ import annotations
 
@@ -99,8 +101,7 @@ def target_directory(value: str) -> Path:
     if path.exists() and not path.is_dir():
         fail(f"target path exists but is not a directory: {value}")
 
-    path.mkdir(parents=True, exist_ok=True)
-    return path.resolve()
+    return Path(os.path.abspath(path))
 
 
 def ensure_docker() -> None:

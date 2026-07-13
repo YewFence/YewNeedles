@@ -7,11 +7,11 @@ uv = "latest"
 
 [tasks."ops:shell-volumes"]
 description = "打开带有简单工具的 shell 以简单管理指定的 named volume"
-run = "./volume-tools/volume-shell/open.sh"
+file = "volume-tools/volume-shell/open.sh"
 
 [tasks."ops:sftp-volumes"]
 description = "将指定的 named volume 暴露为 sftp 服务"
-run = "./volume-tools/volume-sftp/open.py"
+file = "volume-tools/volume-sftp/open.py"
 
 [tasks."ops:copy-volume"]
 description = "在宿主机目录和 Docker 命名卷之间同步内容"

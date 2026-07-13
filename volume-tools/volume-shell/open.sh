@@ -1,4 +1,9 @@
 #!/usr/bin/env sh
+#USAGE arg "<volume>" help="要挂载的现有 Docker 命名卷"
+#USAGE complete "volume" run="./packages/mise-completions/volume-locations volumes '{{words[CURRENT] | escape_xml}}'"
+#USAGE flag "--ro" help="只读挂载（默认）"
+#USAGE flag "--rw --write" help="读写挂载"
+#USAGE arg "[command]" help="在工具容器中执行的命令" var=#true var_min=0
 set -eu
 
 usage() {
@@ -9,6 +14,18 @@ usage() {
 script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 volume=""
 mode="ro"
+
+if [ "$#" -eq 0 ] && [ -n "${usage_volume:-}" ]; then
+	set -- "$usage_volume"
+	if [ "${usage_rw:-false}" = "true" ]; then
+		set -- "$@" --rw
+	elif [ "${usage_ro:-false}" = "true" ]; then
+		set -- "$@" --ro
+	fi
+	if [ -n "${usage_command:-}" ]; then
+		eval "set -- \"\$@\" $usage_command"
+	fi
+fi
 
 while [ "$#" -gt 0 ]; do
 	case "$1" in

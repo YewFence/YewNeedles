@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
+#USAGE arg "<volume>" help="要重建 labels 的现有 Docker 命名卷"
+#USAGE complete "volume" run="./packages/mise-completions/volume-locations volumes '{{words[CURRENT] | escape_xml}}'"
+#USAGE flag "--label <label>" help="增加或覆盖 key=value label，可重复" var=#true
+#USAGE flag "--remove-label <key>" help="删除 label key，可重复" var=#true
+#USAGE flag "--clear-labels" help="先清空现有 labels"
+#USAGE flag "--keep-backup" help="成功后保留临时备份卷"
+#USAGE flag "--backup-volume <volume>" help="指定临时备份卷名称"
 from __future__ import annotations
 
 import argparse
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -40,6 +48,19 @@ def parse_label_key(value: str) -> str:
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
+    if not argv and os.environ.get("usage_volume"):
+        argv = [os.environ["usage_volume"]]
+        for label in shlex.split(os.environ.get("usage_label", "")):
+            argv.extend(("--label", label))
+        for key in shlex.split(os.environ.get("usage_remove_label", "")):
+            argv.extend(("--remove-label", key))
+        if os.environ.get("usage_clear_labels") == "true":
+            argv.append("--clear-labels")
+        if os.environ.get("usage_keep_backup") == "true":
+            argv.append("--keep-backup")
+        if backup_volume := os.environ.get("usage_backup_volume"):
+            argv.extend(("--backup-volume", backup_volume))
+
     parser = argparse.ArgumentParser(
         prog="volume-relabel",
         description="Rewrite Docker volume labels in place by recreating the volume with its data restored.",
