@@ -11,7 +11,7 @@ name = "clash-verge-rev"
 repo = "clash-verge-rev/clash-verge-rev"
 package_names = ["clash-verge", "clash-verge-rev", "Clash.Verge"]
 # renovate: datasource=github-releases depName=clash-verge-rev/clash-verge-rev versioning=semver
-version = "v2.5.1"
+version = "v2.5.2"
 
 [[apps.rpm]]
 name = "biopass-rs"
