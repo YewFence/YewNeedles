@@ -25,7 +25,7 @@ name = "motrix-next"
 repo = "AnInsomniacy/motrix-next"
 package_names = ["MotrixNext", "motrix-next", "motrixnext"]
 # renovate: datasource=github-releases depName=AnInsomniacy/motrix-next versioning=semver
-version = "v3.9.6"
+version = "v3.9.7"
 
 [[apps.appimage]]
 name = "paseo"
