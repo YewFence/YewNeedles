@@ -1,0 +1,95 @@
+#!/usr/bin/env zsh
+# #MISE description="Update system software packages and applications"
+
+setopt errexit nounset pipefail
+
+export SKIP_FASTFETCH=1
+script_dir="${0:A:h}"
+cd -- "$script_dir"
+
+keep_shell_open() {
+  print
+  print "任务结束。这个分屏会保留，方便查看输出或继续操作。"
+  exec zsh -l
+}
+
+run_dnf() {
+  print "=== DNF：检查可升级软件包 ==="
+  print
+
+  set +e
+  dnf check-update
+  check_status=$?
+  set -e
+
+  case "$check_status" in
+    0)
+      print
+      print "没有可升级的 DNF 软件包。"
+      ;;
+    100)
+      print
+      print "发现可升级的 DNF 软件包。"
+      if gum confirm \
+        --affirmative="执行离线升级" \
+        --negative="跳过" \
+        "执行 sudo dnf upgrade --offline？"; then
+        print
+        if sudo dnf upgrade --offline; then
+          print
+          print "离线升级事务已准备好。"
+          if reboot_confirmation="$(gum input \
+            --header="离线升级事务已准备好" \
+            --prompt="执行 sudo dnf offline reboot？" \
+            --placeholder="输入 y 并按 Enter；其他输入取消" \
+            --char-limit=1)" &&
+            [[ "$reboot_confirmation" == "y" || "$reboot_confirmation" == "Y" ]]; then
+            sudo dnf offline reboot
+          else
+            print "已保留离线升级事务，稍后可以手动执行：sudo dnf offline reboot"
+          fi
+        else
+          print -u2 "DNF 离线升级准备失败，未安排重启。"
+        fi
+      else
+        print "已跳过 DNF 离线升级。"
+      fi
+      ;;
+    *)
+      print
+      print -u2 "dnf check-update 失败，退出码：$check_status"
+      ;;
+  esac
+
+  keep_shell_open
+}
+
+run_mise() {
+  print "=== mise：交互式升级工具 ==="
+  print
+  mise self-update
+  if ! mise up -i; then
+    print -u2 "mise 升级失败。"
+  fi
+  keep_shell_open
+}
+
+run_flatpak() {
+  print "=== Flatpak：更新应用 ==="
+  print
+  if ! flatpak update; then
+    print -u2 "Flatpak 更新失败。"
+  fi
+  keep_shell_open
+}
+
+if (( $# == 1 )); then
+  case "$1" in
+    dnf) run_dnf ;;
+    mise) run_mise ;;
+    flatpak) run_flatpak ;;
+    *) print -u2 "未知任务：$1"; exit 2 ;;
+  esac
+fi
+
+exec zellij --layout "$script_dir/system-upgrade.kdl"

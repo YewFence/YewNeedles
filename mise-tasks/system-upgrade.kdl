@@ -1,0 +1,21 @@
+layout {
+    pane size=1 borderless=true {
+        plugin location="tab-bar"
+    }
+    pane split_direction="vertical" {
+        pane name="mise" command="zsh" {
+            args "system-upgrade" "mise"
+        }
+        pane split_direction="horizontal" {
+            pane name="DNF" command="zsh" {
+                args "system-upgrade" "dnf"
+            }
+            pane name="Flatpak" command="zsh" {
+                args "system-upgrade" "flatpak"
+            }
+        }
+    }
+    pane size=1 borderless=true {
+        plugin location="status-bar"
+    }
+}
