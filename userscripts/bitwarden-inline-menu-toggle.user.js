@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Bitwarden 内联菜单临时开关
+// @name         Bitwarden Inline Menu Toggle
 // @namespace    https://github.com/YewFence/yew-needles
-// @version      0.1.0
-// @description  用 Alt+Shift+B 临时隐藏或恢复当前页面中的 Bitwarden 内联自动填充菜单，不停用 Bitwarden 扩展。
+// @version      0.1.1
+// @description  Temporarily hide or restore Bitwarden's inline autofill menu on the current page with Alt+Shift+B without disabling the extension.
 // @author       YewFence
 // @match        http://*/*
 // @match        https://*/*
@@ -13,7 +13,7 @@
 (() => {
   "use strict";
 
-  // 想换快捷键时，只需修改这里。event.code 使用键盘物理按键名。
+  // Change this object to use a different shortcut. event.code identifies the physical key.
   const shortcut = Object.freeze({
     code: "KeyB",
     altKey: true,
@@ -29,20 +29,22 @@
   let scanScheduled = false;
   let toastTimer;
 
-  // 这里只保存由本脚本关闭的元素。恢复时不会误打开原本就关闭的菜单。
-  const suppressedElements = new Set();
+  // Track only hosts detached by this script so restoring never affects unrelated page elements.
+  const suppressedElements = new Map();
 
   const mutationObserver = new MutationObserver(() => scheduleScan());
 
   /**
-   * Bitwarden 会随机生成宿主元素名，但当前实现仍有一组相当独特的特征：
-   * - 手动 popover；
-   * - all: initial !important；
-   * - fixed 定位、block 显示；
-   * - 使用浏览器允许的最大 z-index。
+   * Bitwarden randomizes its host element names, but the current implementation still has
+   * a distinctive combination of characteristics:
+   * - a manual popover;
+   * - all: initial !important;
+   * - fixed positioning and block display;
+   * - the browser's maximum z-index.
    *
-   * Chrome/Edge 使用总长度 9 到 15、带 1 到 3 个连字符的随机自定义元素名。
-   * 匹配条件有意设置得较严格：Bitwarden 改实现后宁可失效，也不要误隐藏网页元素。
+   * Chrome and Edge use randomized custom element names 9 to 15 characters long with
+   * one to three hyphens. The matcher is intentionally strict: if Bitwarden changes its
+   * implementation, failing safely is preferable to hiding an unrelated page element.
    */
   function isBitwardenInlineMenuHost(element) {
     if (!(element instanceof HTMLElement)) {
@@ -68,8 +70,8 @@
       style.getPropertyPriority(property) === "important";
 
     return (
-      // Chromium 在 all 之后设置具体属性时会让 all 的 CSSOM 值变为空，
-      // 但仍保留这条声明的 important 优先级。
+      // Chromium clears the CSSOM value for `all` when specific properties follow it,
+      // but preserves the declaration's important priority.
       style.getPropertyPriority("all") === "important" &&
       hasImportantValue("position", "fixed") &&
       hasImportantValue("display", "block") &&
@@ -84,14 +86,25 @@
       return;
     }
 
-    try {
-      if (element.matches(":popover-open")) {
-        suppressedElements.add(element);
-        element.hidePopover();
+    const existingRecord = suppressedElements.get(element);
+    if (existingRecord) {
+      if (element.isConnected) {
+        element.remove();
       }
-    } catch {
-      // 某些旧浏览器可能只实现了部分 Popover API；遇到时保持网页原状。
+      return;
     }
+
+    const parent = element.parentNode;
+    if (!parent) {
+      return;
+    }
+
+    suppressedElements.set(element, {
+      parent,
+      nextSibling: element.nextSibling,
+      wasPopoverOpen: element.matches(":popover-open"),
+    });
+    element.remove();
   }
 
   function scanAndSuppress() {
@@ -122,7 +135,7 @@
       return;
     }
 
-    // Bitwarden 通常在焦点或指针事件结束后显示菜单，推迟到微任务再检查。
+    // Bitwarden usually opens the menu after focus or pointer handling completes.
     scheduleScan();
   }
 
@@ -133,7 +146,7 @@
     document.addEventListener("toggle", handlePossibleMenuOpen, true);
     scanAndSuppress();
 
-    // 首次切换可能恰好和 Bitwarden 的异步显示处于同一帧，再兜底检查一次。
+    // The first toggle can share a frame with Bitwarden's asynchronous menu insertion.
     requestAnimationFrame(scanAndSuppress);
   }
 
@@ -146,20 +159,27 @@
   }
 
   function restoreSuppressedElements() {
-    const elements = [...suppressedElements];
+    const entries = [...suppressedElements];
     suppressedElements.clear();
 
-    for (const element of elements) {
-      if (!element.isConnected || !isBitwardenInlineMenuHost(element)) {
+    for (const [element, { parent, nextSibling }] of [...entries].reverse()) {
+      if (element.isConnected || !parent.isConnected || !isBitwardenInlineMenuHost(element)) {
+        continue;
+      }
+
+      const insertionPoint = nextSibling?.parentNode === parent ? nextSibling : null;
+      parent.insertBefore(element, insertionPoint);
+    }
+
+    for (const [element, { wasPopoverOpen }] of entries) {
+      if (!wasPopoverOpen || !element.isConnected) {
         continue;
       }
 
       try {
-        if (!element.matches(":popover-open")) {
-          element.showPopover();
-        }
+        element.showPopover();
       } catch {
-        // 元素所在的 dialog 可能已经关闭，或 Bitwarden 已让此菜单失效。
+        // The containing dialog may have closed, or Bitwarden may have invalidated the menu.
       }
     }
   }
@@ -178,7 +198,7 @@
     }
 
     if (announce && isTopFrame) {
-      showToast(paused ? "Bitwarden 内联菜单：已隐藏" : "Bitwarden 内联菜单：已恢复");
+      showToast(paused ? "Bitwarden inline menu hidden" : "Bitwarden inline menu restored");
     }
   }
 
@@ -195,7 +215,7 @@
           "*",
         );
       } catch {
-        // 跨域 WindowProxy 正常支持 postMessage；若 frame 正在销毁，忽略即可。
+        // Cross-origin WindowProxy supports postMessage; ignore frames being destroyed.
       }
     }
   }
@@ -215,14 +235,14 @@
       try {
         event.source?.postMessage({ channel: messageChannel, type: "state", paused }, "*");
       } catch {
-        // 请求状态的 frame 可能已经导航。
+        // The requesting frame may have navigated.
       }
       return;
     }
 
     if (message.type === "state" && typeof message.paused === "boolean") {
       setPaused(message.paused);
-      // 将状态继续传给嵌套 iframe。
+      // Forward the state to nested frames.
       broadcastStateToChildFrames();
     }
   }
@@ -294,10 +314,10 @@
 
   if (isTopFrame) {
     if (typeof GM_registerMenuCommand === "function") {
-      GM_registerMenuCommand("切换 Bitwarden 内联菜单（Alt+Shift+B）", toggleFromTopFrame);
+      GM_registerMenuCommand("Toggle Bitwarden inline menu (Alt+Shift+B)", toggleFromTopFrame);
     }
   } else {
-    // 新加载的 iframe 主动继承顶层页面当前的开关状态。
+    // Newly loaded frames inherit the top-level page's current state.
     window.top.postMessage({ channel: messageChannel, type: "request-state" }, "*");
   }
 })();
