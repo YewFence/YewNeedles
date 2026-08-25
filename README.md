@@ -24,9 +24,9 @@ mise tasks
 
 ## GitHub Release RPM 安装
 
-`mise-tasks/gh-install-latest-rpm` 用于单个仓库的安装流程，具体为查询 release、按架构和可选的 `pattern` 选择 RPM 资产、下载并安装。
+`mise-tasks/gh/install-latest-rpm` 用于单个仓库的安装流程，具体为查询 release、按架构和可选的 `pattern` 选择 RPM 资产、下载并安装。
 
-`mise-tasks/gh-sync-release` 会读取 `apps.toml`、按 `--type` 指定的类型检查本地版本、决定哪些工具需要更新，然后逐个复用对应的安装流程。
+`mise-tasks/gh/sync-release` 会读取 `apps.toml`、按 `--type` 指定的类型检查本地版本、决定哪些工具需要更新，然后逐个复用对应的安装流程。
 
 RPM 会检查当前系统里已经安装的包版本，AppImage 会通过 Gear Lever 生成的桌面入口定位应用并检查 `X-AppImage-Version` 或同名 `.version` 文件，KPackage 会通过 `kpackagetool6` 定位 KDE 包并读取脚本维护的 `.gh-release-download-version`。
 
@@ -34,19 +34,19 @@ RPM 会检查当前系统里已经安装的包版本，AppImage 会通过 Gear L
 
 ```bash
 # 安装单个仓库当前最新 release 的 RPM
-mise run gh-install-latest-rpm -- farion1231/cc-switch
+mise run gh:install-latest-rpm -- farion1231/cc-switch
 # 支持预览
-mise run gh-install-latest-rpm -- farion1231/cc-switch --dry-run
+mise run gh:install-latest-rpm -- farion1231/cc-switch --dry-run
 # 按 `apps.toml` 检查并同步全部已定义应用
-mise run gh-sync-release
+mise run gh:sync-release
 # 支持预览
-mise run gh-sync-release -- --dry-run
+mise run gh:sync-release -- --dry-run
 # 只同步 RPM
-mise run gh-sync-release -- --type rpm
+mise run gh:sync-release -- --type rpm
 # 只同步 AppImage
-mise run gh-sync-release -- --type appimage
+mise run gh:sync-release -- --type appimage
 # 只同步 KDE KPackage
-mise run gh-sync-release -- --type kpackage
+mise run gh:sync-release -- --type kpackage
 ```
 
 #### 配置示例
@@ -95,7 +95,7 @@ version = "v1.2.3"
 
 AppImage 本身没有一个所有应用都会提供的标准版本字段，Gear Lever 会尽量把应用桌面入口里的 `X-AppImage-Version` 带到 `~/.local/share/applications/*.desktop`，但不是每个 AppImage 都会内嵌这个字段。
 
-如果第一次安装后 `mise run gh-sync-release -- --type appimage --dry-run` 提示找不到版本，可以在 Gear Lever 指向的 AppImage 文件旁边手动创建同名 `.version` 文件，内容写 `apps.toml` 里当前的 `version` 值即可，后续脚本更新时会自动维护这个文件并同步更新桌面入口里的 `X-AppImage-Version`。
+如果第一次安装后 `mise run gh:sync-release -- --type appimage --dry-run` 提示找不到版本，可以在 Gear Lever 指向的 AppImage 文件旁边手动创建同名 `.version` 文件，内容写 `apps.toml` 里当前的 `version` 值即可，后续脚本更新时会自动维护这个文件并同步更新桌面入口里的 `X-AppImage-Version`。
 
 同步任务会在命中版本时输出版本来源，来源可能是桌面入口里的 `X-AppImage-Version`，也可能是 AppImage 旁边的 `.version` 文件；如果 Gear Lever 没有安装过这个应用，或者两处都找不到版本，会输出高亮的 warning。
 

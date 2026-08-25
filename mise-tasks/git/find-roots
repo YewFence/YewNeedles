@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+#MISE description="查找目录树中的所有 .git 标记，未指定目录时扫描 $HOME"
+#USAGE arg "[roots]" var=#true help="要扫描的目录，默认 $HOME"
+#USAGE flag "--cross-filesystems" help="扫描时允许进入其他挂载的文件系统"
+
+set -u
+
+if [[ -n "${usage_roots:-}" ]]; then
+  eval "roots=($usage_roots)"
+else
+  roots=("${HOME:?HOME 未设置}")
+fi
+cross_filesystems="${usage_cross_filesystems:-false}"
+
+find_options=()
+if ! $cross_filesystems; then
+  find_options=(-xdev)
+fi
+
+found=0
+had_error=0
+
+printf '%-10s  %-8s  %s\n' '占用' '类型' '仓库根目录'
+printf '%-10s  %-8s  %s\n' '----------' '--------' '----------'
+
+for root in "${roots[@]}"; do
+  if [[ ! -d $root ]]; then
+    printf '跳过，不是目录：%s\n' "$root" >&2
+    had_error=1
+    continue
+  fi
+
+  while IFS= read -r -d '' marker; do
+    found=$((found + 1))
+    repo=${marker%/.git}
+
+    if [[ -L $marker ]]; then
+      kind='符号链接'
+    elif [[ -d $marker ]]; then
+      kind='目录'
+    elif [[ -f $marker ]]; then
+      kind='文件'
+    else
+      kind='其他'
+    fi
+
+    size=$(du -sh -- "$marker" 2>/dev/null | cut -f1)
+    printf '%-10s  %-8s  %s\n' "${size:-?}" "$kind" "$repo"
+  done < <(find "$root" "${find_options[@]}" -name .git -print0 -prune 2> >(
+    while IFS= read -r line; do
+      printf 'find: %s\n' "$line" >&2
+    done
+  ))
+done
+
+printf '\n共找到 %d 个 .git 标记。\n' "$found"
+
+if ((had_error)); then
+  exit 1
+fi

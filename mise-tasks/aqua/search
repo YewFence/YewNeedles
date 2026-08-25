@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+#MISE description="Fuzzy-search package names in the official aqua registry"
+#MISE tools={yq="latest", fzf="latest"}
+#USAGE arg "<query>" help="Package name fragment to search"
+#USAGE flag "-l --limit <number>" help="Maximum number of results" default="20"
+#USAGE flag "-r --refresh" help="Refresh the cached registry before searching"
+
+set -euo pipefail
+
+readonly registry_endpoint="repos/aquaproj/aqua-registry/contents/registry.yaml"
+readonly cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/aqua-search"
+readonly registry_file="$cache_dir/registry.yaml"
+readonly cache_max_age=86400
+
+limit="${usage_limit?}"
+refresh="${usage_refresh:-false}"
+query="${usage_query?}"
+
+
+die() {
+  printf 'aqua-search: %s\n' "$*" >&2
+  exit 2
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
+}
+
+[[ -n "$query" ]] || die "a search query is required"
+[[ "$limit" =~ ^[1-9][0-9]*$ ]] || die "limit must be a positive integer"
+
+require_command gh
+require_command yq
+require_command fzf
+
+cache_is_stale() {
+  [[ ! -f "$registry_file" ]] && return 0
+  local modified_at now
+  modified_at="$(stat -c %Y "$registry_file")"
+  now="$(date +%s)"
+  ((now - modified_at >= cache_max_age))
+}
+
+download_registry() {
+  mkdir -p "$cache_dir"
+  local temporary_file
+  temporary_file="$(mktemp "$cache_dir/registry.yaml.XXXXXX")"
+  trap 'rm -f "$temporary_file"' RETURN
+
+  gh api \
+    -H 'Accept: application/vnd.github.raw+json' \
+    "$registry_endpoint" >"$temporary_file"
+
+  yq -e '.packages | type == "!!seq"' "$temporary_file" >/dev/null ||
+    die "downloaded registry has an unexpected format"
+
+  mv "$temporary_file" "$registry_file"
+  trap - RETURN
+}
+
+if [[ "$refresh" == true ]] || cache_is_stale; then
+  download_registry
+fi
+
+matches="$({
+  yq -r '
+    .packages[] |
+    (
+      .name //
+      (select((.repo_owner // "") != "" and (.repo_name // "") != "") | .repo_owner + "/" + .repo_name) //
+      (select(.type == "go_install" and (.path // "") != "") | .path)
+    )
+  ' "$registry_file" |
+    fzf --filter="$query" --ignore-case --scheme=path
+} || true)"
+
+if [[ -z "$matches" ]]; then
+  printf 'aqua-search: no package names matched %q\n' "$query" >&2
+  exit 1
+fi
+
+printf '%s\n' "$matches" | sed -n "1,${limit}p"

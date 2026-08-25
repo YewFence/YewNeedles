@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-# #MISE description="Update system software packages and applications"
+#MISE description="Update system software packages and applications"
 
 setopt errexit nounset pipefail
 

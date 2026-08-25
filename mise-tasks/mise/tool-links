@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+#MISE description="列出 mise 已安装工具的来源仓库或主页链接"
+set -euo pipefail
+
+extract_url() {
+  grep -Eo 'https?://[^[:space:]]+' | head -n 1 | sed 's/[),.;]*$//'
+}
+
+github_url() {
+  local repo="${1#github:}"
+  repo="${repo%.git}"
+  printf 'https://github.com/%s' "$repo"
+}
+
+cargo_url() {
+  local crate="${1#cargo:}"
+  printf 'https://crates.io/crates/%s' "$crate"
+}
+
+npm_url() {
+  local package="${1#npm:}"
+  printf 'https://www.npmjs.com/package/%s' "$package"
+}
+
+forgejo_url() {
+  local repo="${1#forgejo:}"
+  repo="${repo%.git}"
+  printf 'https://codeberg.org/%s' "$repo"
+}
+
+go_url() {
+  local package="${1#go:}"
+  printf 'https://pkg.go.dev/%s' "$package"
+}
+
+git_spec_url() {
+  local spec="$1"
+  spec="${spec#pipx:git+}"
+  spec="${spec%%#*}"
+  spec="${spec%.git}"
+  printf '%s' "$spec"
+}
+
+pipx_url_from_metadata() {
+  local install_path="$1"
+  local receipt package metadata url
+
+  receipt="$(find "$install_path" -path '*/uv-receipt.toml' -print -quit 2>/dev/null || true)"
+  [[ -n "$receipt" ]] || return 1
+
+  package="$(sed -n 's/.*requirements = \[{ name = "\([^"]*\)".*/\1/p' "$receipt" | head -n 1)"
+  [[ -n "$package" ]] || return 1
+
+  metadata="$(find "$install_path" -path "*/site-packages/${package}-*.dist-info/METADATA" -print -quit 2>/dev/null || true)"
+  [[ -n "$metadata" ]] || return 1
+
+  url="$(
+    grep -E '^(Home-page|Project-URL): ' "$metadata" |
+      extract_url || true
+  )"
+
+  [[ -n "$url" ]] || return 1
+  printf '%s' "$url"
+}
+
+search_url() {
+  local tool="$1"
+  local line url
+  local candidates=("$tool")
+
+  if [[ "$tool" == *:* ]]; then
+    local rest="${tool#*:}"
+    candidates+=("$rest" "${rest##*/}")
+  fi
+
+  for name in "${candidates[@]}"; do
+    line="$(mise search "$name" --match-type equal --no-header 2>/dev/null || true)"
+    url="$(printf '%s\n' "$line" | extract_url || true)"
+    if [[ -n "$url" ]]; then
+      printf '%s' "$url"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+mise ls -c --json |
+  jq -r 'to_entries[] | @base64' |
+  while IFS= read -r encoded; do
+    tool="$(printf '%s' "$encoded" | base64 -d | jq -r '.key')"
+    install_path="$(printf '%s' "$encoded" | base64 -d | jq -r '.value[] | select(.installed) | .install_path' | head -n 1)"
+
+    if [[ "$tool" == github:* ]]; then
+      url="$(github_url "$tool")"
+      printf '%s\t%s\n' "$tool" "$url"
+    elif [[ "$tool" == cargo:* ]]; then
+      url="$(cargo_url "$tool")"
+      printf '%s\t%s\n' "$tool" "$url"
+    elif [[ "$tool" == npm:* ]]; then
+      url="$(npm_url "$tool")"
+      printf '%s\t%s\n' "$tool" "$url"
+    elif [[ "$tool" == forgejo:* ]]; then
+      url="$(forgejo_url "$tool")"
+      printf '%s\t%s\n' "$tool" "$url"
+    elif [[ "$tool" == go:* ]]; then
+      url="$(go_url "$tool")"
+      printf '%s\t%s\n' "$tool" "$url"
+    elif [[ "$tool" == pipx:git+https://* || "$tool" == pipx:git+http://* ]]; then
+      url="$(git_spec_url "$tool")"
+      printf '%s\t%s\n' "$tool" "$url"
+    elif [[ "$tool" == pipx:* && -n "$install_path" ]] && url="$(pipx_url_from_metadata "$install_path")"; then
+      printf '%s\t%s\n' "$tool" "$url"
+    elif url="$(search_url "$tool")"; then
+      printf '%s\t%s\n' "$tool" "$url"
+    else
+      printf '%s\t<missing>\n' "$tool"
+    fi
+  done
