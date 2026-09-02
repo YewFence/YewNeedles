@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# dms-satty: screenshot with DMS, annotate with Satty.
+#
+# DMS writes the screenshot directly to stdout, so it can be piped into Satty
+# without a temporary file. Satty saves the annotated result under the usual
+# screenshot naming scheme:
+#
+#   Screenshot from YYYY-MM-DD HH-MM-SS.png
+#
+# Usage:
+#   dms-satty [ui|screen|window] [--dir DIR] [-- SATTY_ARGS...]
+#
+# Modes:
+#   ui      open the DMS screenshot UI (region select)   [default]
+#   screen  screenshot the focused screen
+#   window  screenshot the focused window
+#
+# Everything after -- is passed to Satty verbatim. Do not pass -f/--filename
+# or -o/--output-filename there; the script manages both.
+
+set -euo pipefail
+
+usage() {
+    cat >&2 <<'EOF'
+Usage: dms-satty [ui|screen|window] [--dir DIR] [-- SATTY_ARGS...]
+
+Modes:
+  ui      open the DMS screenshot UI (region select)   [default]
+  screen  screenshot the focused screen
+  window  screenshot the focused window
+
+Options:
+  -d, --dir DIR   directory for the saved, annotated screenshot
+                  (default: ~/Pictures/Screenshots)
+  -h, --help      show this help
+
+Anything after -- is passed to Satty verbatim (e.g. --fullscreen,
+--initial-tool=arrow). The script manages --filename and --output-filename,
+so do not pass those.
+EOF
+}
+
+out_dir=~/Pictures/Screenshots
+mode=
+
+while [ $# -gt 0 ]; do
+    case $1 in
+        -d|--dir)
+            if [ $# -lt 2 ]; then
+                echo "dms-satty: missing argument for $1" >&2
+                exit 2
+            fi
+            out_dir=$2
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            usage
+            exit 2
+            ;;
+        *)
+            mode=$1
+            shift
+            ;;
+    esac
+done
+
+mode=${mode:-ui}
+case $mode in
+    ui|screen|window) ;;
+    *)
+        usage
+        exit 2
+        ;;
+esac
+
+for tool in dms satty; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "dms-satty: $tool not found in PATH" >&2
+        exit 1
+    fi
+done
+
+case $mode in
+    ui)
+        dms_mode=region
+        ;;
+    screen)
+        dms_mode=full
+        ;;
+    window)
+        dms_mode=window
+        ;;
+esac
+
+mkdir -p "$out_dir"
+
+# Satty expands strftime specifiers in --output-filename when saving.
+dms screenshot "$dms_mode" \
+    --stdout \
+    --no-clipboard \
+    --no-notify \
+    | satty \
+    --filename - \
+    --output-filename "$out_dir/Screenshot from %Y-%m-%d %H-%M-%S.png" \
+    "$@"
