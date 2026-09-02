@@ -1,0 +1,134 @@
+#!/usr/bin/env zsh
+# jjcm — 用 pi 从 jj diff 生成 commit message，并写入 change description
+#
+#   jjcm           # 对当前 change 生成并写入 message
+#   jjcm -e        # 生成后打开 $EDITOR 确认，再写入
+#   jjcm -r @-     # 对指定 revset 生成并写入 (补历史 message 用)
+#   jjcm 'type is refactor'   # 位置参数作为附加生成提示
+# 环境变量:
+#   JJCM_MODEL        传给 pi 的 --model（默认 cch/deepseek-v4-pro，裸名有歧义必须带 provider）
+#   JJCM_THINKING     传给 pi 的 --thinking（默认 minimal）
+#   JJCM_PROMPT_FILE  自定义 system prompt 文件（默认用脚本内嵌的）
+#   JJCM_FILESET     传给 jj diff 的 fileset 表达式, 语法见 jj fileset 文档
+#                    （默认 ~"**/*.lock", 空字符串 = 不过滤）
+
+set -euo pipefail
+
+usage() {
+  print -u2 'usage: jjcm [-e|--edit] [-r REVSET] [HINT...]'
+  print -u2 "  HINT: 附加生成提示, 如 jjcm 'type is refactor'"
+  print -u2 '  default: diff @ vs parent (auto-snapshots wc), write message to @'
+  print -u2 '  -e: open $EDITOR to review the message before applying'
+  print -u2 '  fileset 过滤语法见 jj 文档 filesets 章节 (JJCM_FILESET)'
+  print -u2 'env: JJCM_MODEL, JJCM_THINKING, JJCM_PROMPT_FILE, JJCM_FILESET'
+}
+
+model=${JJCM_MODEL:-cch/deepseek-v4-pro}
+thinking=${JJCM_THINKING:-minimal}
+prompt_file=${JJCM_PROMPT_FILE:-}
+fileset=${JJCM_FILESET-~"**/*.lock"}
+edit=false
+revset_args=()
+hint_parts=()
+while (( $# )); do
+  case $1 in
+    -e|--edit)
+      edit=true
+      shift
+      ;;
+    -r)
+      [[ -n ${2:-} ]] || { print -u2 'jjcm: -r needs a revset'; exit 2 }
+      revset_args=(-r "$2")
+      shift 2
+      ;;
+    -r=*)
+      revset_args=(-r "${1#-r=}")
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      hint_parts+=("$@")
+      break
+      ;;
+    -*)
+      print -u2 "jjcm: unknown option: $1"
+      usage
+      exit 2
+      ;;
+    *)
+      hint_parts+=("$1")
+      shift
+      ;;
+  esac
+done
+
+hint=${(j: :)hint_parts}
+
+# ---- custom conf: system prompt ----
+if [[ -n $prompt_file ]]; then
+  [[ -f $prompt_file ]] || { print -u2 "jjcm: prompt file not found: $prompt_file"; exit 1 }
+  sys_prompt=$(<"$prompt_file")
+  print -u2 "jjcm: using custom system prompt: $prompt_file"
+else
+  sys_prompt=$(cat <<'EOF'
+You generate commit messages from diffs.
+
+Write a commit message for the provided diff that follows the Conventional Commits specification.
+Prefer a message with a body, unless the diff is trivial.
+The subject line must be in the imperative mood, at most 72 characters, and must not end with a period.
+Output only the plain text commit message, with no additional explanation, no markdown fences, and no code blocks.
+EOF
+)
+fi
+
+# ---- get the diff ----
+# jj 每条命令默认先快照 working copy, 所以裸 `jj diff` (= -r @) 就是
+# "当前改动(快照后 @) vs parent", 正是要写 message 的内容; --ignore-working-copy 反而会丢改动。
+# fileset 原样透传给 jj diff, 语法见 jj fileset 文档
+fileset_args=()
+[[ -n $fileset ]] && fileset_args=("$fileset")
+desc_args=()
+if (( ${#revset_args} )); then
+  diff=$(jj diff --color never $revset_args $fileset_args) || exit 1
+  desc_args=($revset_args)
+else
+  diff=$(jj diff --color never $fileset_args) || exit 1
+fi
+diff_trimmed=${diff//[[:space:]]/}
+if [[ -z $diff_trimmed || $diff_trimmed == 'Nothingchanged.' ]]; then
+  print -u2 'jjcm: no changes to describe'
+  exit 1
+fi
+
+# ---- pi: print mode + ephemeral session, no tools/context/extensions ----
+pi_args=(
+  -p
+  --no-session
+  --no-tools
+  --no-context-files
+  --no-skills
+  --no-extensions
+  --no-prompt-templates
+  --no-approve
+  --thinking "$thinking"
+  --system-prompt "$sys_prompt"
+)
+[[ -n $model ]] && pi_args+=(--model "$model")
+
+user_prompt='Write a commit message for the diff below.'
+[[ -n $hint ]] && user_prompt+=" Additional guidance: $hint"
+msg=$(print -r -- "$diff" | pi $pi_args "$user_prompt") || exit 1
+[[ -n $msg ]] || { print -u2 'jjcm: pi returned an empty message'; exit 1 }
+
+# ---- write it to the change description ----
+if $edit; then
+  print -r -- "$msg" | jj desc --stdin --editor $desc_args
+else
+  print -r -- "$msg" | jj desc --stdin $desc_args
+fi
+
+print -r -- "$msg"
