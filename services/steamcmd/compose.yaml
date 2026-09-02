@@ -1,0 +1,39 @@
+x-steamcmd: &steamcmd
+  image: cm2network/steamcmd:latest
+  entrypoint: ["/home/steam/steamcmd/steamcmd.sh"]
+  volumes:
+    - ${HOME}/.local/share/wallpaper_engine:/home/steam/we
+    - steam-home:/home/steam
+
+services:
+  wallpaper:
+    <<: *steamcmd
+    profiles: ["wallpaper"]
+    command:
+      - +force_install_dir
+      - /home/steam/we
+      - +login
+      - ${STEAM_USER:?Please provide Steam username}
+      - +workshop_download_item
+      - "431960"
+      - ${WALLPAPER_ID:?Pass the wallpaper id via WALLPAPER_ID (the number after ?id= in the Workshop link), or just run ./wallpaper.sh}
+      - +quit
+
+  sync:
+    <<: *steamcmd
+    profiles: ["sync"]
+    stdin_open: true
+    tty: true
+    command:
+      - +@sSteamCmdForcePlatformType
+      - windows
+      - +force_install_dir
+      - /home/steam/we
+      - +login
+      - ${STEAM_USER:-cloudmapleleaf}
+      - +app_update
+      - "431960"
+      - +quit
+
+volumes:
+  steam-home:
