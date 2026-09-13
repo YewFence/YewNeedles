@@ -4,9 +4,8 @@
 
 ## 插件
 
-- `sudo/ee-2-sudo.zsh` 按 `Alt + s` 给当前命令添加或移除 `sudo`
-- `space/shortcut-2-space.zsh` 按 `Alt + i` 给当前命令添加或移除开头空格，并启用 `HIST_IGNORE_SPACE`
-- `exec-command-completion/exec-completion.zsh` 给 `infisical run -- ` 这类命令包装器补全后续命令
+
+- ~`exec-command-completion/exec-completion.zsh` 给 `infisical run -- ` 这类命令包装器补全后续命令~ 似乎不可用，回头再研究
 
 ## 安装
 
@@ -18,8 +17,6 @@
 
 ```text
 # zsh-plugins.txt
-YewFence/YewNeedles path:zsh-plugins/sudo/ee-2-sudo.zsh
-YewFence/YewNeedles path:zsh-plugins/space/shortcut-2-space.zsh
 YewFence/YewNeedles path:zsh-plugins/exec-command-completion/exec-completion.zsh
 ```
 
@@ -34,7 +31,5 @@ git clone git@github.com:YewFence/YewNeedles.git ~/.local/share/yew-needles
 在 `.zshrc` 里 source 需要的插件。
 
 ```zsh
-source ~/.local/share/yew-needles/zsh-plugins/sudo/ee-2-sudo.zsh
-source ~/.local/share/yew-needles/zsh-plugins/space/shortcut-2-space.zsh
 source ~/.local/share/yew-needles/zsh-plugins/exec-command-completion/exec-completion.zsh
 ```
