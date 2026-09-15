@@ -6,7 +6,7 @@
 
 
 - ~`exec-command-completion/exec-completion.zsh` 给 `infisical run -- ` 这类命令包装器补全后续命令~ 似乎不可用，回头再研究
-- `av-guard/av-guard.zsh` 运行需要 Agent Vault 凭证的 CLI（如 `gh`）时，检测 `AGENT_VAULT_ACTIVE` 标志，未开启则先执行 `av-on` 再运行原命令。source 前设置 `AV_GUARD_COMMANDS=(gh pi glab)` 自定义托管列表（默认 `gh pi`），运行时用 `av-guard add|rm <cmd>...` 和 `av-guard list` 管理
+- `av-guard/av-guard.zsh` 运行需要 Agent Vault 凭证的 CLI（如 `gh`）时，检测 `AGENT_VAULT_ACTIVE` 标志，未开启则先执行 `av-on` 再运行原命令。source 前设置 `AV_GUARD_COMMANDS=(gh pi glab)` 自定义托管列表（默认 `gh pi`），运行时用 `av-guard add|rm <cmd>...` 和 `av-guard list` 管理。需要临时跳过一次，用 `AV_GUARD_DISABLE=1 gh ...` 即可
 
 ## 安装
 

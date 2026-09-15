@@ -7,6 +7,7 @@
 # 用法：
 #   - source 本插件前可自定义托管列表：AV_GUARD_COMMANDS=(gh glab)
 #   - 运行时管理：av-guard add <cmd>... / av-guard rm <cmd>... / av-guard list
+#   - 临时跳过：AV_GUARD_DISABLE=1 gh issue list（非空即生效，只影响该条命令）
 #
 # 注意：若给托管命令定义了同名 alias，alias 会在函数之前展开，本插件不生效。
 
@@ -24,6 +25,11 @@ _av_guard_run() {
     # 二进制不存在时原样放行：保留原生 command not found 报错，
     # 也避免为打错的命令白白启动 vault
     if (( ! $+commands[$cmd] )); then
+        command "$cmd" "$@"
+        return
+    fi
+
+    if [[ -n ${AV_GUARD_DISABLE:-} ]]; then
         command "$cmd" "$@"
         return
     fi
