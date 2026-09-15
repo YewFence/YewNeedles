@@ -11,7 +11,8 @@
 #   JJCM_PROMPT_FILE  自定义 system prompt 文件（默认用脚本内嵌的）
 #   JJCM_FILESET     传给 jj diff 的 fileset 表达式, 语法见 jj fileset 文档
 #                    （默认 ~"**/*.lock", 空字符串 = 不过滤）
-#                    被滤掉的文件会以名单形式写进 prompt, diff 内容本身省略
+#                    被滤掉的文件以名单形式写进 prompt (diff 内容省略);
+#                    全部被滤掉时 fail closed, 提示手写 chore(deps) 类 message
 
 set -euo pipefail
 
@@ -99,23 +100,32 @@ if (( ${#revset_args} )); then
 else
   diff=$(jj diff --color never $fileset_args) || exit 1
 fi
-diff_trimmed=${diff//[[:space:]]/}
-if [[ -z $diff_trimmed || $diff_trimmed == 'Nothingchanged.' ]]; then
-  print -u2 'jjcm: no changes to describe'
-  exit 1
-fi
 
 # ---- 被 fileset 滤掉的文件: diff 内容是噪音不进 prompt, 但文件名有信息量 ----
-skipped_note=
+skipped_lines=
 if [[ -n $fileset ]]; then
   full_summary=$(jj diff --color never --summary $revset_args)
   kept_summary=$(jj diff --color never --summary $revset_args $fileset)
   skipped_lines=$(print -r -- "$full_summary" | sort | comm -23 - <(print -r -- "$kept_summary" | sort))
+fi
+
+diff_trimmed=${diff//[[:space:]]/}
+if [[ -z $diff_trimmed || $diff_trimmed == 'Nothingchanged.' ]]; then
   if [[ -n $skipped_lines ]]; then
-    skipped_note="The diff excludes the following modified files, filtered out because their diffs are mostly generated noise (e.g. lockfile hash churn):"
-    skipped_note+=$'\n'"$skipped_lines"
-    skipped_note+=$'\n'"Treat them as generated updates (typically dependency lockfiles): infer what actually changed from manifest diffs such as Cargo.toml, package.json, or pyproject.toml when present; do not invent version numbers; reflect them in the message only as a dependency/lockfile update."
+    print -u2 'jjcm: no describable changes; only filtered files changed:'
+    print -ru2 -- "$skipped_lines"
+    print -u2 "write it yourself, e.g.: jj desc -m 'chore(deps): update dependencies'"
+  else
+    print -u2 'jjcm: no changes to describe'
   fi
+  exit 1
+fi
+
+skipped_note=
+if [[ -n $skipped_lines ]]; then
+  skipped_note="The diff excludes the following modified files, filtered out because their diffs are mostly generated noise (e.g. lockfile hash churn):"
+  skipped_note+=$'\n'"$skipped_lines"
+  skipped_note+=$'\n'"Treat them as generated updates (typically dependency lockfiles): infer what actually changed from manifest diffs such as Cargo.toml, package.json, or pyproject.toml when present; do not invent version numbers; reflect them in the message only as a dependency/lockfile update."
 fi
 
 # ---- pi: print mode + ephemeral session, no tools/context/extensions ----
