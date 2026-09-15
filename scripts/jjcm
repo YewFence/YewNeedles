@@ -23,7 +23,7 @@ usage() {
   print -u2 'env: JJCM_MODEL, JJCM_THINKING, JJCM_PROMPT_FILE, JJCM_FILESET'
 }
 
-model=${JJCM_MODEL:-cch/deepseek-v4-pro}
+model=${JJCM_MODEL:-glm-5.3-flash}
 thinking=${JJCM_THINKING:-minimal}
 prompt_file=${JJCM_PROMPT_FILE:-}
 fileset=${JJCM_FILESET-~"**/*.lock"}
@@ -123,6 +123,13 @@ user_prompt='Write a commit message for the diff below.'
 [[ -n $hint ]] && user_prompt+=" Additional guidance: $hint"
 msg=$(print -r -- "$diff" | pi $pi_args "$user_prompt") || exit 1
 [[ -n $msg ]] || { print -u2 'jjcm: pi returned an empty message'; exit 1 }
+
+# ---- 清洗: 有些模型会无视 prompt 用 ``` 包裹整条 message, 成对出现时去掉 ----
+msg_lines=(${(f)msg})
+if (( ${#msg_lines} >= 2 )) && [[ ${msg_lines[1]} == '```'* && ${msg_lines[-1]} == '```' ]]; then
+  msg_lines=(${msg_lines[2,-2]})
+  msg=${(F)msg_lines}
+fi
 
 # ---- write it to the change description ----
 if $edit; then
