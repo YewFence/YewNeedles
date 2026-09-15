@@ -5,6 +5,11 @@ jq = "latest"
 python = "latest"
 uv = "latest"
 
+[tasks."mise:tool-links"]
+description = "列出 mise 已安装工具的官网和来源仓库链接"
+file = "mise-tasks/mise/tool-links"
+tools = { yq = "latest" }
+
 [tasks."ops:shell-volumes"]
 description = "打开带有简单工具的 shell 以简单管理指定的 named volume"
 file = "volume-tools/volume-shell/open.sh"
