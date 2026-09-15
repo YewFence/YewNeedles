@@ -6,11 +6,14 @@
 #   jjcm -r @-     # 对指定 revset 生成并写入 (补历史 message 用)
 #   jjcm 'type is refactor'   # 位置参数作为附加生成提示
 # 环境变量:
-#   JJCM_MODEL        传给 pi 的 --model（默认 cch/deepseek-v4-pro，裸名有歧义必须带 provider）
+#   JJCM_MODEL        传给 pi 的 --model（默认 glm-5.3-flash）
 #   JJCM_THINKING     传给 pi 的 --thinking（默认 minimal）
 #   JJCM_PROMPT_FILE  自定义 system prompt 文件（默认用脚本内嵌的）
 #   JJCM_FILESET     传给 jj diff 的 fileset 表达式, 语法见 jj fileset 文档
 #                    （默认 ~"**/*.lock", 空字符串 = 不过滤）
+#   JJCM_EXTENSIONS   逗号分隔的 pi 扩展, 逐个以 -e 显式加载（不做存在性判断）;
+#                    自动发现仍被 --no-extensions 关闭。例如
+#                    npm:@shelken/pi-dynamic-models 用于发现模型列表
 #                    被滤掉的文件以名单形式写进 prompt (diff 内容省略);
 #                    全部被滤掉时 fail closed, 提示手写 chore(deps) 类 message
 
@@ -22,13 +25,14 @@ usage() {
   print -u2 '  default: diff @ vs parent (auto-snapshots wc), write message to @'
   print -u2 '  -e: open $EDITOR to review the message before applying'
   print -u2 '  fileset 过滤语法见 jj 文档 filesets 章节 (JJCM_FILESET)'
-  print -u2 'env: JJCM_MODEL, JJCM_THINKING, JJCM_PROMPT_FILE, JJCM_FILESET'
+  print -u2 'env: JJCM_MODEL, JJCM_THINKING, JJCM_PROMPT_FILE, JJCM_FILESET, JJCM_EXTENSIONS'
 }
 
 model=${JJCM_MODEL:-glm-5.3-flash}
 thinking=${JJCM_THINKING:-minimal}
 prompt_file=${JJCM_PROMPT_FILE:-}
 fileset=${JJCM_FILESET-~"**/*.lock"}
+extensions=${JJCM_EXTENSIONS:-}
 edit=false
 revset_args=()
 hint_parts=()
@@ -142,6 +146,10 @@ pi_args=(
   --system-prompt "$sys_prompt"
 )
 [[ -n $model ]] && pi_args+=(--model "$model")
+# --no-extensions 只关自动发现, 显式 -e 不受影响: 需要的扩展按名加载
+for ext in ${(s:,:)extensions}; do
+  pi_args+=(-e "$ext")
+done
 
 user_prompt='Write a commit message for the diff below.'
 [[ -n $hint ]] && user_prompt+=" Additional guidance: $hint"
